@@ -1,12 +1,12 @@
 """Shared machinery for the mocked external services.
 
 Each mock is *deterministic*: answers come from a threat-intel registry written by the
-data generator (data/processed/intel.json) or, for keys it has never seen, from a stable
+data generator (data/raw/intel.json) or, for keys it has never seen, from a stable
 hash of the key. Latency is drawn from a lognormal distribution whose RNG is seeded from
 the key, so the same lookup always costs the same simulated time.
 
 Latency can be *simulated* (real `time.sleep`, used by the API/demo) or *virtual*
-(reported but not slept, used for batch evaluation so 25k emails don't take hours).
+(reported but not slept, used for batch evaluation so 10k emails don't take hours).
 """
 from __future__ import annotations
 

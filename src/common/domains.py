@@ -16,6 +16,10 @@ FREEMAIL_DOMAINS: frozenset[str] = frozenset(
     }
 )
 
+# Brands attackers most often impersonate; the lookalike rule protects these plus each tenant's
+# own domain and its known vendors.
+BRAND_DOMAINS: frozenset[str] = frozenset({"microsoft.com", "docusign.net", "paypal.com", "dhl.com", "zoom.us"})
+
 URL_SHORTENERS: frozenset[str] = frozenset(
     {"bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "is.gd", "buff.ly", "rebrand.ly", "cutt.ly"}
 )

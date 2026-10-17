@@ -9,18 +9,19 @@ paths:
   reports: reports
 
 data:
-  n_tenants: 20
+  n_tenants: 10              # one per industry
   mailboxes_per_tenant: 30
-  history_days: 90           # relationship history window before the labelled period
-  n_emails: 25000            # labelled emails
+  start_date: 2026-06-01
+  days: 60                   # whole stream; features only ever look at earlier emails
+  n_emails: 10000
   label_noise: 0.02
   class_mix:                 # fraction of labelled emails
-    legit: 0.80
+    legit: 0.78
     spam: 0.08
     phishing: 0.06
     bec: 0.04
-    malware: 0.02
-  test_fraction_days: 0.2    # last 20% of the labelled period is the test set
+    malware: 0.04
+  test_days: 12              # last 12 days (20%) are the time-based test set
 
 # Mocked external services. Latency is lognormal around p50 with a hard client timeout.
 services:
@@ -33,5 +34,4 @@ services:
 cascade:
   sync_deadline_ms: 5000     # provider fail-open deadline
   target_p99_ms: 2000
-  gray_zone: [0.30, 0.80]    # Tier 1 scores sent to Tier 2 (re-tuned in eval)
-  tier2_timeout_ms: 2000
+  gray_zone: [0.30, 0.80]    # Tier 1 scores sent to the intent check (re-tuned in eval)

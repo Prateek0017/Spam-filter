@@ -1,5 +1,2 @@
 -r requirements.txt
 pytest==9.1.1
-nbformat
-nbconvert
-ipykernel

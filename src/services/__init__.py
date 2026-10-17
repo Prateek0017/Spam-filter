@@ -25,7 +25,7 @@ def build_services(cfg: dict[str, Any], intel: ThreatIntel | None = None,
                    simulate_latency: bool = False) -> Services:
     """Construct all mocks from the `services:` config block and the intel snapshot."""
     if intel is None:
-        intel = ThreatIntel.load(Path(cfg["paths"]["processed"]) / "intel.json")
+        intel = ThreatIntel.load(Path(cfg["paths"]["raw"]) / "intel.json")
     sc = cfg["services"]
     mk = lambda name: LatencyModel.from_config(sc[name])  # noqa: E731
     return Services(

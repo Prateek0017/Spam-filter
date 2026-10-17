@@ -1,7 +1,6 @@
 """Core data model shared by the generator, feature extraction, cascade and API.
 
-Pydantic models are used so the same schema validates API input (FastAPI) and
-serialises generated data to JSONL.
+Pydantic models validate pasted demo input and serialise generated data to JSONL.
 """
 from __future__ import annotations
 
@@ -75,10 +74,11 @@ class Email(BaseModel):
     thread: list[ThreadMessage] = Field(default_factory=list)
     headers: dict[str, str] = Field(default_factory=dict)
 
-    # Ground truth (generator only; never used as a feature)
-    label: int | None = None           # 1 = malicious, 0 = legit (may contain injected noise)
-    category: str | None = None        # one of CATEGORIES (true category, before noise)
-    scenario: str | None = None        # e.g. "hard_neg:cfo_urgent_payment", "hard_pos:compromised_vendor"
+    # Labels (generator only; never used as features)
+    category: str | None = None        # observed label, one of CATEGORIES (includes ~2% label noise)
+    true_category: str | None = None   # ground truth before noise
+    label: int | None = None           # 1 if `category` is malicious (anything but legit)
+    scenario: str | None = None        # e.g. "legit:vendor_invoice", "hard_pos:compromised_vendor"
 
 
 class Tenant(BaseModel):
@@ -87,12 +87,13 @@ class Tenant(BaseModel):
     domain: str
     industry: Industry
     mailboxes: list[str]
+    names: dict[str, str]              # mailbox address -> display name
     executives: dict[str, str]         # role -> mailbox address (CEO, CFO, ...)
     vendors: list[str]                 # registrable domains of real suppliers / partners
 
 
 class Action(str, Enum):
     DELIVER = "DELIVER"
-    DELIVER_WITH_WARNING_BANNER = "DELIVER_WITH_WARNING_BANNER"
+    WARNING_BANNER = "WARNING_BANNER"
     SPAM_FOLDER = "SPAM_FOLDER"
     QUARANTINE = "QUARANTINE"
