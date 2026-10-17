@@ -24,9 +24,9 @@ from lightgbm import LGBMClassifier
 from sklearn.metrics import average_precision_score, confusion_matrix, precision_recall_fscore_support
 
 from src.common.config import load_config, seed_everything
-from src.data.io import load_emails
-from src.data.schema import CATEGORIES, Action
-from src.features.extract import ARCHIVE_EXTENSIONS, FEATURES
+from src.data.io import load_emails, load_sent
+from src.data.schema import CATEGORIES, Action, Email
+from src.features.extract import ARCHIVE_EXTENSIONS, FEATURES, SUBJECT_FEATURES, merge_stream
 from src.models.train import split_dates
 from src.pipeline.cascade import Cascade
 from src.services.virus_scan import MACRO_EXTENSIONS, RISKY_EXTENSIONS
@@ -45,12 +45,13 @@ BLUES = LinearSegmentedColormap.from_list("blues", ["#f3f7fd", "#9ec5f4", "#3987
 
 # ---- replay ----------------------------------------------------------------------------
 def replay(cfg: dict) -> pd.DataFrame:
-    emails = load_emails(Path(cfg["paths"]["raw"]) / "emails.jsonl")
+    raw = Path(cfg["paths"]["raw"])
+    stream = merge_stream(load_emails(raw / "emails.jsonl"), load_sent(raw / "sent.jsonl"))
     _, test_start = split_dates(cfg)
     cas = Cascade.load(cfg, fresh_history=True)
     rows = []
-    for e in emails:
-        if e.timestamp >= test_start:
+    for e in stream:
+        if isinstance(e, Email) and e.timestamp >= test_start:
             v = cas.classify(e)
             sync_action, sync_cat = v.action.value, v.category
             v, scan_ms = Cascade.remediate(v)
@@ -202,16 +203,21 @@ def main() -> None:
     # Ablation: same test rows, same true labels.
     train_start, _ = split_dates(cfg)
     fit = feats[(feats["split"] == "train") & (feats["timestamp"] >= train_start)]
-    meta_cols = [f for f in FEATURES if f not in TEXT_FEATURES]
-    meta = LGBMClassifier(objective="multiclass", **cfg["model"]["lgbm"], random_state=seed, verbose=-1)
-    meta.fit(fit[meta_cols], fit["category"].map({c: i for i, c in enumerate(CATEGORIES)}))
-    meta_score = pd.Series(1 - meta.predict_proba(df[meta_cols])[:, 0], index=df.index)
+    def ablation_score(cols: list[str]) -> pd.Series:
+        """Retrain LightGBM (same params, same rows) on a feature subset; P(malicious) on test."""
+        m = LGBMClassifier(objective="multiclass", **cfg["model"]["lgbm"], random_state=seed, verbose=-1)
+        m.fit(fit[cols], fit["category"].map({c: i for i, c in enumerate(CATEGORIES)}))
+        return pd.Series(1 - m.predict_proba(df[cols])[:, 0], index=df.index)
+
+    meta_score = ablation_score([f for f in FEATURES if f not in TEXT_FEATURES + SUBJECT_FEATURES])
+    nosubj_score = ablation_score([f for f in FEATURES if f not in SUBJECT_FEATURES])
     n_rules = df["rules"].str.split("|").map(lambda r: len([x for x in r if x]))
     ablation = pd.DataFrame({
         "Rules only (Tier 0 block)": binary(y, df["rule_block"].astype(int), n_rules, df),
         "Text only (TF-IDF + LR)": binary(y, (df["text_score"] >= 0.5).astype(int), df["text_score"], df),
-        "Metadata only (no text features)": binary(y, (meta_score >= 0.5).astype(int), meta_score, df),
-        "Full model (LightGBM)": binary(y, (df["model_score"] >= 0.5).astype(int), df["model_score"], df),
+        "Metadata only (no text or subject features)": binary(y, (meta_score >= 0.5).astype(int), meta_score, df),
+        "Full model (LightGBM, no subject features)": binary(y, (nosubj_score >= 0.5).astype(int), nosubj_score, df),
+        "Full model + subject features": binary(y, (df["model_score"] >= 0.5).astype(int), df["model_score"], df),
         "Full cascade (blocked)": binary(y, df["action"].isin(BLOCKED).astype(int), None, df),
         "Full cascade (blocked or banner)": binary(y, (df["action"] != "DELIVER").astype(int), None, df),
         "Full cascade + async virus scan": binary(y, (df["post_action"] != "DELIVER").astype(int), None, df),

@@ -20,7 +20,7 @@ def generated():
 
 
 def test_class_mix_matches_config(generated) -> None:
-    cfg, tenants, emails, _, n_noisy = generated
+    cfg, tenants, emails, _, n_noisy, _ = generated
     assert len(tenants) == cfg["data"]["n_tenants"] and len(emails) == 3000
     true = Counter(e.true_category for e in emails)
     for cat, frac in cfg["data"]["class_mix"].items():
@@ -31,8 +31,20 @@ def test_class_mix_matches_config(generated) -> None:
     assert all(e.label == int(e.category != "legit") for e in emails)
 
 
+def test_real_replies_are_in_sent_log_and_fake_ones_are_not(generated) -> None:
+    """Legit threads leave a sent-mail record; attackers' 'RE:' subjects (and forged threads) do not."""
+    _, _, emails, _, _, sent = generated
+    log = {(m.from_addr, m.to_addr) for m in sent}
+    threaded_legit = [e for e in emails if e.true_category == "legit" and e.thread]
+    assert threaded_legit and all(e.subject.lower().startswith("re:") for e in threaded_legit)
+    assert all((e.to_addr, e.from_addr) in log for e in threaded_legit)
+    fake = [e for e in emails if e.scenario.startswith(("bec:", "phishing:"))
+            and e.subject.lower().startswith(("re:", "fw"))]
+    assert len(fake) > 20 and not any((e.to_addr, e.from_addr) in log for e in fake)
+
+
 def test_stream_is_time_ordered_and_has_hard_cases(generated) -> None:
-    _, _, emails, _, _ = generated
+    _, _, emails, _, _, _ = generated
     assert all(a.timestamp <= b.timestamp for a, b in zip(emails, emails[1:]))
     scenarios = {e.scenario.split(":")[0] for e in emails}
     assert {"hard_neg", "hard_pos"} <= scenarios
@@ -40,8 +52,8 @@ def test_stream_is_time_ordered_and_has_hard_cases(generated) -> None:
 
 _DIGEST = (
     "import hashlib; from src.common.config import load_config; from src.data.generate import generate;"
-    "cfg = load_config(); cfg['data']['n_emails'] = 1500; _, emails, intel, _ = generate(cfg);"
-    "h = hashlib.sha256(); [h.update(e.model_dump_json().encode()) for e in emails];"
+    "cfg = load_config(); cfg['data']['n_emails'] = 1500; _, emails, intel, _, sent = generate(cfg);"
+    "h = hashlib.sha256(); [h.update(x.model_dump_json().encode()) for x in emails + sent];"
     "h.update(repr(sorted(intel.domain_created.items())).encode()); print(h.hexdigest())"
 )
 

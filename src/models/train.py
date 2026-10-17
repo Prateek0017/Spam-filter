@@ -24,9 +24,9 @@ from lightgbm import LGBMClassifier
 from sklearn.metrics import average_precision_score, f1_score
 
 from src.common.config import load_config, seed_everything
-from src.data.io import load_emails, load_tenants
-from src.data.schema import CATEGORIES
-from src.features.extract import FEATURES, FeatureExtractor, email_text
+from src.data.io import load_emails, load_sent, load_tenants
+from src.data.schema import CATEGORIES, SentMessage
+from src.features.extract import FEATURES, FeatureExtractor, email_text, merge_stream
 from src.models.text import make_lr, make_vectorizer, oof_scores
 from src.pipeline.intent import IntentModel
 from src.rules.engine import RULES, blocks, run_rules
@@ -43,6 +43,7 @@ def split_dates(cfg: dict) -> tuple[datetime, datetime]:
 def build_feature_table(cfg: dict) -> tuple[pd.DataFrame, FeatureExtractor, object, list[str]]:
     raw = Path(cfg["paths"]["raw"])
     emails, tenants = load_emails(raw / "emails.jsonl"), load_tenants(raw / "tenants.json")
+    sent = load_sent(raw / "sent.jsonl")
     _, test_start = split_dates(cfg)
     texts = [email_text(e) for e in emails]
     vectorizer = make_vectorizer().fit([t for t, e in zip(texts, emails) if e.timestamp < test_start])
@@ -52,7 +53,12 @@ def build_feature_table(cfg: dict) -> tuple[pd.DataFrame, FeatureExtractor, obje
     models = Path(cfg["paths"]["models"])
     models.mkdir(parents=True, exist_ok=True)
     rows, snapshot_saved = [], False
-    for i, e in enumerate(emails):
+    index = {id(e): i for i, e in enumerate(emails)}
+    for item in merge_stream(emails, sent):
+        if isinstance(item, SentMessage):
+            fx.record_sent(item)
+            continue
+        e, i = item, index[id(item)]
         if not snapshot_saved and e.timestamp >= test_start:
             # Sender history as of the split: the demo classifies test emails as unseen mail.
             joblib.dump(fx, models / "feature_extractor.joblib")

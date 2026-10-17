@@ -43,8 +43,8 @@ EXAMPLES = [
      lambda v: v.tier == 2),
     ("Invoice with a macro attachment", lambda e: e.scenario == "malware:attachment"
      and any(a.filename.endswith((".docm", ".xlsm")) for a in e.attachments), lambda v: v.action == Action.QUARANTINE),
-    ("Missed: password-protected zip from a known contact", lambda e: e.scenario == "hard_pos:password_zip",
-     lambda v: v.action == Action.DELIVER),
+    ("Missed: hijacked vendor account asks to pay a new account",
+     lambda e: e.scenario == "hard_pos:compromised_vendor", lambda v: v.action == Action.DELIVER),
 ]
 REASONS = {r.code: r.description for r in RULES} | {
     "MODEL_HIGH_RISK": "LightGBM is confident this is malicious",

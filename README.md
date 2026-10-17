@@ -6,28 +6,34 @@ emails get a second look; a slow attachment scan runs in the background. Everyth
 no API keys, on reproducible synthetic data.
 
 **Cost: $0.008 per mailbox per month (2.8% of the $0.30 budget)** at the specified 5 inbound emails
-per mailbox per day; still within budget ($0.20, 66%) in a 120 emails/day stress test.
+per mailbox per day; still within budget ($0.20, 67%) in a 120 emails/day stress test.
 
 ## Key result
 
-Held-out last 12 days (1,963 emails, 388 malicious, true labels). "Detected" means any action other
+Held-out last 12 days (1,887 emails, 369 malicious, true labels). "Detected" means any action other
 than DELIVER; models were trained on labels with 2% noise.
 
 | Approach | PR-AUC | Precision | Recall | BEC recall | Hard-positive recall | Legit flagged |
 |---|---|---|---|---|---|---|
-| Rules only (Tier 0 block) | 0.585 | 100.0% | 17.0% | 59.4% | 0.0% | 0 |
-| Text only (TF-IDF + LR) | 0.860 | 53.7% | 87.4% | 92.8% | 81.8% | 292 |
-| Metadata only (no text features) | 0.985 | 96.5% | 93.0% | 84.1% | 36.4% | 13 |
-| Full model (LightGBM, all features) | **0.993** | 100.0% | 95.9% | 97.1% | 51.5% | 0 |
-| **Full cascade** (rules → model → intent check) | – | 99.2% | 95.9% | **97.1%** | **54.5%** | 3 |
+| Rules only (Tier 0 block) | 0.617 | 100.0% | 11.9% | 28.2% | 0.0% | 0 |
+| Text only (TF-IDF + LR) | 0.886 | 56.9% | 87.8% | 88.7% | 91.3% | 245 |
+| Metadata only (no text or subject features) | 0.978 | 96.9% | 92.4% | 71.8% | 26.1% | 11 |
+| Full model (LightGBM, no subject features) | 0.992 | 100.0% | 96.5% | 88.7% | 43.5% | 0 |
+| Full model + subject features | **0.993** | 100.0% | 96.2% | 87.3% | 43.5% | 0 |
+| **Full cascade** (rules → model → intent check) | – | 99.4% | 96.5% | **88.7%** | **47.8%** | 2 |
 
-- **Text alone is not enough.** It finds most attacks only by also flagging 292 legit emails (18% of
+- **Text alone is not enough.** It finds most attacks only by also flagging 245 legit emails (16% of
   legit mail), because legit invoices, payment chasers and IT notices use the same words.
 - **Relationship + infrastructure features carry BEC.** Who is writing (first-time sender, prior
   exchanges, lookalike or freemail domain, display-name and reply-to tricks) is what separates a real
   CFO's urgent wire request from a fake one. Combining them with the text score gives the best of both.
-- **Hard positives remain hard.** Attacks from hijacked real accounts that copy normal wording are
-  caught about half the time; see [Limitations](#limitations).
+- **Subject-line features are roughly neutral here** (PR-AUC 0.992 → 0.993; BEC recall one email
+  lower, which is noise). See [Subject-line features](#subject-line-features) for why.
+- **Hijacked real accounts remain hard.** Compromised-vendor BEC is the main miss (7 of 9 delivered);
+  see [Limitations](#limitations).
+- **Small test sets.** There are 71 BEC and 23 hard-positive emails in the test period, so one email
+  moves BEC recall by 1.4 points and hard-positive recall by 4.3. Regenerating the data with different
+  content moves these numbers by several points; compare rows, not runs.
 
 Full report: [reports/eval_report.md](reports/eval_report.md).
 
@@ -61,7 +67,7 @@ A B2B email provider must classify every inbound email into **DELIVER**, **WARNI
 
 ```mermaid
 flowchart LR
-    A[Inbound email] --> S["Signals: auth, WHOIS age, IP and URL reputation,<br/>sender history, topic shift, keywords"]
+    A[Inbound email] --> S["Signals: auth, WHOIS age, IP and URL reputation,<br/>sender history, topic shift, keywords, subject line"]
     A -. attachments .-> V[(Virus scan<br/>async, median ~2.5 s)]
     S --> R{Tier 0<br/>rules}
     R -- "block rule + first-time sender" --> Q[QUARANTINE]
@@ -77,9 +83,9 @@ flowchart LR
 
 | Tier | What it does | Share of test mail |
 |---|---|---|
-| 0: rules | 7 reason-coded rules. Two can quarantine alone (lookalike domain, young domain sending in bulk), and only for first-time senders. | 3.4% |
-| 1: model | TF-IDF text score + 24 metadata features in a LightGBM classifier (5 classes). | 95.7% |
-| 2: intent check | Gray-zone scores only: what the email asks for plus whether the relationship looks off. | 1.0% |
+| 0: rules | 7 reason-coded rules. Two can quarantine alone (lookalike domain, young domain sending in bulk), and only for first-time senders. None looks at the subject. | 2.3% |
+| 1: model | TF-IDF text score + 30 other features in a LightGBM classifier (5 classes). | 97.0% |
+| 2: intent check | Gray-zone scores only: what the email asks for plus whether the relationship looks off. | 0.7% |
 | async | Attachment scan; never delays delivery, pulls infected mail afterwards. | 0.25 attachments per email |
 
 ## How it works
@@ -89,26 +95,49 @@ flowchart LR
 tenants, targeted BEC). It includes hard negatives (real CFO urgent wires, vendor payment chasers, IT
 password notices, staff writing from personal Gmail, a third-party tool failing DMARC) and hard
 positives (hijacked vendor and partner accounts, credential pages on real SharePoint, password-protected
-zips), 2% label noise, and threat intel for the mocked WHOIS / IP / URL / AV services. Fully seeded.
+zips), 2% label noise, and threat intel for the mocked WHOIS / IP / URL / AV services. A **sent-mail
+log** records the tenant's real replies, so "have these two people actually corresponded?" can be
+answered from history. Fully seeded.
 
 **Rules** (`src/rules/engine.py`): auth failure, internal-domain spoof, employee display name from
 outside, lookalike domain (rapidfuzz vs the tenant's domain, its vendors and major brands), young
 domain + high volume, blocklisted IP, reply-to mismatch. Each returns a reason code. Rules whose
 precision on the training period was not near-perfect only add reasons; they never decide alone.
 
-**Point-in-time features** (`src/features/extract.py`). 25 features computed by walking the stream in
-time order: each email only sees history from earlier emails (sender's prior messages to this tenant,
-prior exchanges with this mailbox, domain volume in the last 24 h, topic shift vs the sender's past
-mail). A test checks that adding future emails never changes past features. The split is by time
-(last 12 days are test); the first 7 days only build history.
+**Point-in-time features** (`src/features/extract.py`). 31 features computed by walking inbound mail
+and the sent-mail log in time order: each email only sees history from earlier messages (sender's
+prior messages to this tenant, prior exchanges with this mailbox in either direction, domain volume
+in the last 24 h, topic shift vs the sender's past mail). The quoted thread inside an email is never
+trusted, because attackers forge it. A test checks that adding future emails never changes past
+features. The split is by time (last 12 days are test); the first 7 days only build history.
+
+### Subject-line features
+
+Six features, used by the model only (no rule acts on the subject):
+
+| Feature | What it measures |
+|---|---|
+| `fake_reply` | Subject starts with RE:/FW:/Fwd: but this mailbox and sender have never exchanged mail (history store, not the quoted thread) |
+| `subject_body_sim` | TF-IDF cosine similarity between subject and body |
+| `subject_kw` | Urgency / money words in the subject (separate from the body keyword counts) |
+| `subject_caps_ratio`, `subject_exclaims`, `subject_emojis` | Style: share of capital letters, "!" count, emoji count |
+
+The generator gives real threads a reply prefix (backed by the sent-mail log), makes 30–40% of
+phishing and BEC campaigns fake a reply (half with a forged quoted thread), has colleagues forward
+vendor mail, and puts emojis and capitals in some spam and in a few legit newsletters and promos.
+
+Why they add little here: `subject_body_sim` and `subject_caps_ratio` rank 7th and 9th by SHAP, but
+`fake_reply` adds almost nothing because every fake reply in this data comes from a brand-new attacker
+address, which `first_time_sender` already flags; it would matter for a hijacked account faking a reply.
+The style features mainly fire on spam, which is already caught 100%.
 
 ### The text approach
 
 - **Tier 1: TF-IDF + logistic regression → `text_score`.** Unigrams and bigrams (never crossing a
-  sentence boundary) over subject + body, with URLs, the sender's display name and the recipient's
-  name masked so the model reads *what is said*, not *who signed it*. Its P(malicious) is one feature
-  of LightGBM. On training rows the score is **out-of-fold** (5-fold), so LightGBM never learns from a
-  score that has already seen that row's label.
+  sentence boundary) over subject + body, with URLs, reply prefixes, the sender's display name and the
+  recipient's name removed so the model reads *what is said*, not *who signed it*. Its P(malicious) is
+  one feature of LightGBM. On training rows the score is **out-of-fold** (5-fold), so LightGBM never
+  learns from a score that has already seen that row's label.
 - **Tier 2: TF-IDF intent classifier + topic-shift cosine.** A one-vs-rest logistic regression
   predicts four request intents (payment, gift card, credential, urgency), trained on weak labels from
   simple patterns. Topic shift is 1 − cosine similarity between this email's TF-IDF vector and the
@@ -126,29 +155,30 @@ Top 15 TF-IDF terms by logistic-regression weight (from `make eval`):
 
 | # | Toward attack | Toward legit |
 |---|---|---|
-| 1 | authentication today | unchanged |
-| 2 | account | are unchanged |
-| 3 | here url | payment details |
-| 4 | here | details are |
-| 5 | last email | walk |
-| 6 | on my | are |
-| 7 | last | walk through |
-| 8 | book | through it |
-| 9 | my last | it on |
-| 10 | time here | to walk |
-| 11 | book time | the |
-| 12 | purchase | from |
-| 13 | purchase order | through |
-| 14 | 47 | hi |
-| 15 | the updated | on |
+| 1 | here | through it |
+| 2 | purchase | it on |
+| 3 | here url | walk through |
+| 4 | url | to walk |
+| 5 | book | available |
+| 6 | on my | payment |
+| 7 | book time | unchanged |
+| 8 | last | are unchanged |
+| 9 | my last | from |
+| 10 | last email | are |
+| 11 | time here | on the |
+| 12 | url please | introduction |
+| 13 | your | out from |
+| 14 | document | our capabilities |
+| 15 | purchase order | capabilities |
 
-Sensible: urgency on a login ("authentication **today**" vs a real notice's "authentication **by**
-Friday"), "click here" links, spam follow-ups ("my last email", "book time"), malware lures
-("purchase order"), and on the legit side "payment details are unchanged" and "walk through" from
-genuine vendor mail. Not sensible: "47" (a digit fragment of invoice amounts) and function words
-("the", "on", "hi"), which mostly reflect that legit mail is longer and more conversational. The first
-version of this list was full of sender names and company suffixes ("Ltd", "Inc", "IT Service Desk");
-masking names fixed that.
+Sensible: "click here" links ("here url", "url please"), spam follow-ups ("my last email", "book time"),
+malware lures ("purchase order", "document"), and on the legit side "payment details are unchanged" and
+"walk through" from genuine vendor mail. "payment" leans legit because real payment chasers far
+outnumber fraudulent ones, which is exactly why text alone can't catch BEC. Not sensible: "introduction"
+and "our capabilities" come from one hard-negative template (a new vendor introducing itself), and
+function words ("from", "are", "on the") mostly reflect that legit mail is longer. Two earlier versions
+of this list exposed leaks that were then fixed: sender names and company suffixes ("Ltd", "Inc",
+"IT Service Desk"), and reply prefixes ("fw", "fwd", "re payment") once fake replies were added.
 
 ## Results
 
@@ -156,39 +186,44 @@ masking names fixed that.
 
 | Class | Precision | Recall | F1 | Support | PR-AUC (LightGBM) |
 |---|---|---|---|---|---|
-| legit | 99.0% | 99.8% | 99.4% | 1575 | 0.999 |
-| spam | 99.3% | 100.0% | 99.6% | 137 | 1.000 |
-| phishing | 100.0% | 91.9% | 95.8% | 111 | 0.995 |
-| **BEC** | **95.7%** | **95.7%** | **95.7%** | 69 | 0.988 |
-| malware | 100.0% | 93.0% | 96.4% | 71 | 0.996 |
+| legit | 99.1% | 99.9% | 99.5% | 1518 | 0.999 |
+| spam | 93.6% | 100.0% | 96.7% | 132 | 1.000 |
+| phishing | 98.8% | 85.9% | 91.9% | 99 | 0.967 |
+| **BEC** | **98.4%** | **88.7%** | **93.3%** | 71 | 0.979 |
+| malware | 100.0% | 100.0% | 100.0% | 67 | 1.000 |
 
-Every classic BEC pattern in the test set (CEO gift cards, wire requests from lookalike and freemail
-domains, payroll diversion, direct spoofing, vendor-invoice fraud) was quarantined. The only BEC that
-got through came from a **compromised real vendor account**: 2 of 5 delivered, 1 bannered, 2 quarantined.
+Spam precision is lower because 6 phishing emails were routed to the spam folder instead of
+quarantine. Classic BEC patterns (CEO gift cards, wire requests from lookalike and freemail domains,
+payroll diversion, direct spoofing, vendor-invoice fraud) were caught 61 of 62 times. Almost all BEC
+misses came from **compromised real vendor accounts**: 7 of 9 delivered.
 
-**Hard cases.** Hard positives: 54.5% detected (compromised partner accounts 14/22, compromised vendor
-3/5, password-protected zips 1/6). Hard negatives: 247 in test, 1 quarantined and 2 bannered.
+**Hard cases.** Hard positives: 47.8% detected (compromised partner accounts 6/11, compromised vendor
+2/9, password-protected zips 3/3). Hard negatives: 210 in test, 1 quarantined, none bannered.
 
 **Latency** (synchronous path: measured compute plus simulated parallel lookups):
-p50 **9.7 ms**, p95 **22.6 ms**, p99 **28.3 ms**, well under the 2 s target and the 5 s deadline.
+p50 **9.9 ms**, p95 **25.1 ms**, p99 **33.6 ms**, well under the 2 s target and the 5 s deadline.
 Model compute itself is ~1 ms; the slowest external lookup dominates.
+
+**What drives the model (SHAP, top 10):** text_score, sender_domain_age_days, min_url_domain_age_days,
+payment_kw, topic_shift, risky_attachments, subject_body_sim, lookalike_score, subject_caps_ratio,
+ip_score. Chart: [reports/shap_top_features.png](reports/shap_top_features.png).
 
 ### Cost vs the $0.30/mailbox/month budget
 
 **Base case: $0.0083 per mailbox per month (2.8% of budget)** at the specified 5 inbound emails per
-mailbox per day. The stress test at 120/day costs $0.20 (66%) and still fits.
+mailbox per day. The stress test at 120/day costs $0.20 (67%) and still fits.
 
 | Item | Base (5/day) $/mailbox/month | Share of budget | Stress test (120/day) $/mailbox/month | Share of budget |
 |---|---|---|---|---|
 | Compute (features, rules, models) | 0.0000 | 0.0% | 0.0001 | 0.0% |
-| Reputation / WHOIS lookups | 0.0041 | 1.4% | 0.0975 | 32.5% |
-| Static AV scan (every attachment) | 0.0009 | 0.3% | 0.0226 | 7.5% |
-| Sandbox (risky file types, not already quarantined) | 0.0033 | 1.1% | 0.0789 | 26.3% |
-| **Total** | **0.0083** | **2.8%** | **0.1992** | **66.4%** |
+| Reputation / WHOIS lookups | 0.0041 | 1.4% | 0.0991 | 33.0% |
+| Static AV scan (every attachment) | 0.0009 | 0.3% | 0.0222 | 7.4% |
+| Sandbox (risky file types, not already quarantined) | 0.0033 | 1.1% | 0.0782 | 26.1% |
+| **Total** | **0.0083** | **2.8%** | **0.1996** | **66.5%** |
 
-**Headroom for a smarter Tier 2:** the base case leaves $0.29/mailbox/month, and only ~1.5 emails per
-mailbox per month reach the gray zone (1.0%), so Tier 2 could spend up to **~$0.20 per gray-zone email**
-on embeddings or an LLM call and still fit the budget.
+**Headroom for a smarter Tier 2:** the base case leaves $0.29/mailbox/month, and only ~1 email per
+mailbox per month reaches the gray zone (0.7%), so Tier 2 could spend up to **~$0.28 per gray-zone
+email** on embeddings or an LLM call and still fit the budget.
 
 Assumptions (all in `configs/default.yaml`; measured values come from the eval run):
 
@@ -215,9 +250,9 @@ biggest remaining lever is the lookup cache.
 
 `make demo` opens a Streamlit app. Pick one of seven curated test-period emails (routine invoice, a
 real CFO's urgent wire, a lookalike phish blocked at Tier 0, a CEO gift-card request, a gray-zone
-email decided by the intent check, a macro malware invoice, and a password-protected zip that is
-missed) or paste your own. It shows the action, predicted class, tier, latency, reason codes, intent
-probabilities (Tier 2) and a per-email SHAP chart, then waits for the async attachment scan.
+email decided by the intent check, a macro malware invoice, and an attack that is missed) or paste
+your own. It shows the action, predicted class, tier, latency, reason codes, intent probabilities
+(Tier 2) and a per-email SHAP chart, then waits for the async attachment scan.
 
 ## Limitations
 
@@ -225,23 +260,25 @@ probabilities (Tier 2) and a per-email SHAP chart, then waits for the async atta
   even with shared wording, plain-language attacks and label noise, the model sees far less variety
   than real mail. Expect noticeably lower precision and recall on real traffic. The value of this repo
   is the design, the point-in-time evaluation and the ablation, not the absolute scores.
-- **Compromised vendor accounts** (2 of 5 BEC misses). The email comes from the real vendor, passes
-  SPF/DKIM/DMARC, sits in an existing thread and may copy the vendor's normal invoice wording. Proposed
+- **Compromised vendor accounts** (7 of 9 delivered). The email comes from the real vendor, passes
+  SPF/DKIM/DMARC, sits in a real thread and may copy the vendor's normal invoice wording. Proposed
   fixes:
   - a **new-bank-details flag**: any email that changes payment details triggers a banner and an
     out-of-band verification workflow, whoever sends it;
   - **sender behaviour anomalies**: writing style (sentence length, greeting, signature, vocabulary)
     and send-time / sending-IP / client changes compared with that sender's history.
-- **Password-protected zips from known contacts** (5 of 6 delivered). The scanner can't open them and
-  the sender is trusted. Proposed fix: a **banner on password-protected archives from senders who have
-  not sent one before**, and blocking archives whose password is in the same email.
-- **Why Tier 2 adds little here.** LightGBM is already confident on 96% of mail, so only 1.0% reaches
-  the gray zone (it adds one hard positive over LightGBM alone, for 3 flagged legit emails). Topic
-  shift is a weak signal on this data because legit senders already write about many topics (median
-  shift 0.77 for legit vs 0.85 for BEC). Widening the gray zone doesn't help: on the validation window,
-  lowering it from 0.3 to 0.1 catches no extra hard positives and flags 24 more legit emails. Tier 2
-  earns its place when Tier 1 is less certain (real traffic, new tenants) and as the slot for a
-  stronger model (below).
+- **Password-protected zips from known contacts.** All 3 in this test period were caught by the model,
+  but the scanner can't open them and the sender is trusted, so detection rests on weak signals (an
+  earlier data draw missed 5 of 6). Proposed fix: a **banner on password-protected archives from
+  senders who have not sent one before**, and blocking archives whose password is in the same email.
+- **Why Tier 2 adds little here.** LightGBM is already confident on 97% of mail, so only 0.7% reaches
+  the gray zone (one more hard positive and one more BEC over LightGBM alone, for 2 flagged legit
+  emails). Topic shift is a weak signal on this data because legit senders already write about many
+  topics (median shift 0.77 for legit vs 0.83 for BEC); when real vendor payment chasers land in the
+  gray zone, "asks for payment" plus topic shift can quarantine them. Widening the gray zone trades
+  badly on the validation window: lowering it from 0.3 to 0.1 lifts hard-positive recall from 46% to
+  67% but flags 26 legit emails instead of 3 (10 quarantined). Tier 2 earns its place when Tier 1 is
+  less certain (real traffic, new tenants) and as the slot for a stronger model (below).
 - **The async virus scan caught nothing extra** in this test set: everything it can detect was already
   quarantined by the sync path, and what it can't open (encrypted archives) it can't help with.
 - **No feedback loop.** User "report phishing" clicks, admin overrides and per-tenant thresholds are
@@ -261,10 +298,10 @@ probabilities (Tier 2) and a per-email SHAP chart, then waits for the async atta
 
 ```
 configs/default.yaml     all parameters, seeds, cost assumptions
-src/data/                synthetic tenants + email stream (generate.py, templates.py)
+src/data/                synthetic tenants, email stream and sent-mail log (generate.py, templates.py)
 src/services/            mocked WHOIS / IP / URL reputation / virus scan with latency + timeouts
 src/rules/engine.py      Tier 0 rules and reason codes
-src/features/extract.py  point-in-time features
+src/features/extract.py  point-in-time features, incl. subject-line features
 src/models/              text model + LightGBM training
 src/pipeline/            cascade and Tier 2 intent model
 src/eval/report.py       evaluation -> reports/

@@ -4,6 +4,10 @@
 built by earlier `update()` calls, so no feature can see the future. The same object (with
 its accumulated history) is saved after training and reused by the cascade and the demo.
 
+Relationship history also includes the tenant's sent-mail log (`record_sent`): a reply is only
+"real" if this mailbox and sender actually exchanged mail before. The quoted thread inside an
+email is never trusted, because attackers forge it.
+
 `text_score` is not computed here: it comes from the TF-IDF + LR text model and is added
 by the training script (out-of-fold on train) and by the cascade at inference time.
 """
@@ -21,7 +25,7 @@ from scipy.sparse import csr_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from src.common.domains import BRAND_DOMAINS, URL_SHORTENERS, address_domain, is_freemail, registrable_domain, url_host
-from src.data.schema import Email, Tenant
+from src.data.schema import Email, SentMessage, Tenant
 from src.services import Services
 from src.services.virus_scan import MACRO_EXTENSIONS, RISKY_EXTENSIONS
 
@@ -36,9 +40,12 @@ FEATURES: list[str] = [
     # content: URLs and attachments
     "n_urls", "url_bad_verdict", "min_url_domain_age_days", "anchor_mismatch", "offdomain_urls",
     "risky_attachments",
-    # content: keywords + text model
+    # content: body keywords + text model
     "urgency_kw", "payment_kw", "credential_kw", "text_score",
+    # subject line
+    "fake_reply", "subject_body_sim", "subject_kw", "subject_caps_ratio", "subject_exclaims", "subject_emojis",
 ]
+SUBJECT_FEATURES = FEATURES[-6:]
 
 KEYWORDS: dict[str, re.Pattern[str]] = {
     "urgency_kw": re.compile(r"\b(urgent(ly)?|immediately|today|asap|within 24 hours|expires?|act now|overdue|"
@@ -47,6 +54,10 @@ KEYWORDS: dict[str, re.Pattern[str]] = {
                              r"direct deposit|paycheck)\b"),
     "credential_kw": re.compile(r"\b(password|verify|sign in|log ?in|credentials|confirm|account)\b"),
 }
+SUBJECT_KW = re.compile(r"\b(urgent(ly)?|immediately|today|asap|action required|overdue|expires?|final notice|"
+                        r"wire|payment|invoice|bank|remit|transfer|gift cards?|direct deposit|refund)\b")
+REPLY_PREFIX = re.compile(r"^\s*((re|fwd?|aw|wg)\s*:\s*)+", re.I)
+EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF]")
 ARCHIVE_EXTENSIONS = frozenset({"zip", "rar", "7z", "iso", "img", "htm", "html"})
 VOLUME_WINDOW = timedelta(hours=24)
 
@@ -61,7 +72,12 @@ def email_text(e: Email) -> str:
     identity by the sender features; leaving them in lets the text model memorise signatures
     ("Acme Ltd", "IT Service Desk") instead of learning language.
     """
-    text = URL_RE.sub(" URL ", f"{e.subject}\n{e.body}")
+    return mask(f"{REPLY_PREFIX.sub('', e.subject)}\n{e.body}", e)   # reply prefix is fake_reply's job
+
+
+def mask(text: str, e: Email) -> str:
+    """Replace URLs with a token and drop the sender's display name and the recipient's first name."""
+    text = URL_RE.sub(" URL ", text)
     first_name = re.split(r"[._\-+\d]+", e.to_addr.split("@")[0])[0]
     names = [n for n in (e.from_display.strip(), first_name) if len(n) >= 2]   # whole names only
     if names:
@@ -92,7 +108,8 @@ class FeatureExtractor:
         self.vectorizer = vectorizer
         # History state
         self.sender_msgs: Counter[tuple[str, str]] = Counter()           # (tenant, sender) -> #msgs
-        self.pair_msgs: Counter[tuple[str, str]] = Counter()             # (mailbox, sender) -> #msgs
+        self.pair_msgs: Counter[tuple[str, str]] = Counter()             # (mailbox, sender) -> #msgs received
+        self.sent_msgs: Counter[tuple[str, str]] = Counter()             # (mailbox, recipient) -> #msgs sent
         self.domain_times: dict[str, list[datetime]] = defaultdict(list)  # sender domain -> timestamps
         self.sender_text: dict[tuple[str, str], csr_matrix] = {}         # (tenant, sender) -> sum of tf-idf
 
@@ -132,8 +149,9 @@ class FeatureExtractor:
 
         f["first_time_sender"] = float(self.sender_msgs[key] == 0)
         f["sender_prior_msgs"] = math.log1p(self.sender_msgs[key])
-        replies_in_thread = sum(m.from_addr.lower() == e.to_addr.lower() for m in e.thread)
-        f["prior_exchanges"] = math.log1p(self.pair_msgs[(e.to_addr, sender)] + replies_in_thread)
+        pair = (e.to_addr.lower(), sender)
+        exchanges = self.pair_msgs[pair] + self.sent_msgs[pair]       # history store only, never e.thread
+        f["prior_exchanges"] = math.log1p(exchanges)
         f["domain_volume_24h"] = sum(1 for t in self.domain_times.get(dom, ())
                                      if e.timestamp - VOLUME_WINDOW <= t < e.timestamp)
         f["topic_shift"] = self._topic_shift(key, x_text if x_text is not None else self._vec(e))
@@ -164,10 +182,31 @@ class FeatureExtractor:
             x in RISKY_EXTENSIONS | MACRO_EXTENSIONS | ARCHIVE_EXTENSIONS or a.has_macro
             for x, a in zip(exts, e.attachments)))
 
-        text = email_text(e).lower()
+        body = mask(e.body, e).lower()
         for name, pat in KEYWORDS.items():
-            f[name] = float(len(pat.findall(text)))
+            f[name] = float(len(pat.findall(body)))
+        f.update(self._subject_features(e, exchanges))
         return f, max(latencies)
+
+    def _subject_features(self, e: Email, exchanges: int) -> dict[str, float]:
+        """Subject-line signals. Features only: no rule ever acts on the subject alone."""
+        is_reply = bool(REPLY_PREFIX.match(e.subject))
+        subject = REPLY_PREFIX.sub("", e.subject).strip()
+        letters = [c for c in subject if c.isalpha()]
+        if subject and e.body.strip():
+            xs, xb = self.vectorizer.transform([mask(subject, e), mask(e.body, e)])
+            sim = float(xs.multiply(xb).sum())          # rows are L2-normalised -> cosine
+        else:
+            sim = np.nan
+        return {
+            # "RE:/FW:" with no earlier mail between this mailbox and this sender, in either direction
+            "fake_reply": float(is_reply and exchanges == 0),
+            "subject_body_sim": sim,
+            "subject_kw": float(len(SUBJECT_KW.findall(subject.lower()))),
+            "subject_caps_ratio": sum(c.isupper() for c in letters) / len(letters) if letters else 0.0,
+            "subject_exclaims": float(subject.count("!")),
+            "subject_emojis": float(len(EMOJI.findall(subject))),
+        }
 
     def _vec(self, e: Email) -> csr_matrix:
         return self.vectorizer.transform([email_text(e)])
@@ -185,10 +224,19 @@ class FeatureExtractor:
         sender = e.from_addr.lower()
         key = (e.tenant_id, sender)
         self.sender_msgs[key] += 1
-        self.pair_msgs[(e.to_addr, sender)] += 1
+        self.pair_msgs[(e.to_addr.lower(), sender)] += 1
         times = self.domain_times[registrable_domain(address_domain(sender))]
         times.append(e.timestamp)
         while times and e.timestamp - times[0] > VOLUME_WINDOW:    # stream is time ordered
             times.pop(0)
         x = x_text if x_text is not None else self._vec(e)
         self.sender_text[key] = x if key not in self.sender_text else self.sender_text[key] + x
+
+    def record_sent(self, m: SentMessage) -> None:
+        """A message the tenant mailbox sent (from the sent-mail log)."""
+        self.sent_msgs[(m.from_addr.lower(), m.to_addr.lower())] += 1
+
+
+def merge_stream(emails: list[Email], sent: list[SentMessage]) -> list[Email | SentMessage]:
+    """Inbound emails and sent-mail log in time order (sent first on ties), for point-in-time replay."""
+    return sorted([*sent, *emails], key=lambda x: (x.timestamp, isinstance(x, Email)))

@@ -22,7 +22,7 @@ from faker import Faker
 from src.common.config import load_config, seed_everything
 from src.common.domains import BRAND_DOMAINS, FREEMAIL_DOMAINS
 from src.data import templates as T
-from src.data.schema import Attachment, AuthResults, Email, Industry, Tenant, ThreadMessage, Url
+from src.data.schema import Attachment, AuthResults, Email, Industry, SentMessage, Tenant, ThreadMessage, Url
 from src.services.base import ThreatIntel
 
 TENANT_SPECS = [
@@ -47,6 +47,10 @@ PROMO_DOMAIN = "saasmetrics.io"
 # Share of campaigns whose text copies ordinary business mail (no scam phrasing at all), so only
 # sender, relationship and infrastructure signals can tell them apart.
 P_PLAIN = {"phishing": 0.6, "bec": 0.6, "malware": 0.5}
+# Share of campaigns that fake a reply ("RE: ...") to borrow trust; half of those forge a quoted thread.
+P_FAKE_REPLY = {"phishing": 0.3, "bec": 0.4}
+REPLY_PREFIXES = ["RE: ", "Re: ", "FW: ", "Fwd: "]
+EMOJIS = ["🔥", "💰", "🎁", "⚠️", "✅", "📦"]
 HOMOGLYPHS = {"o": "0", "l": "1", "i": "l", "m": "rn", "e": "3"}
 
 
@@ -193,6 +197,7 @@ class Generator:
         self.w, self.rng, self.fake = world, world.rng, world.fake
         self.n = 0
         self.progress = 0.0
+        self.sent: list[SentMessage] = []                   # sent-mail log (real earlier replies)
 
     # ---- helpers ---------------------------------------------------------------------------
     def pick(self, seq):  # type: ignore[no-untyped-def]
@@ -261,6 +266,8 @@ class Generator:
               reply_to: str | None = None, thread: list[ThreadMessage] | None = None) -> Email:
         self.n += 1
         dom = from_addr.rsplit("@", 1)[-1]
+        if thread and not subject.lower().startswith(("re:", "fw:", "fwd:")):
+            subject = f"{self.pick(['Re: ', 'RE: '])}{subject}"  # a reply in a thread carries a reply prefix
         if ip is None:
             ip = self.pick(self.w.domain_ips[dom]) if dom in self.w.domain_ips else self.w.ip()
         return Email(
@@ -271,10 +278,25 @@ class Generator:
             thread_id=f"th{self.n:06d}" if thread else None,
             category=category, true_category=category, label=int(category != "legit"), scenario=scenario)
 
-    def thread_of(self, to: str, ts: datetime, subject: str, body: str = "") -> list[ThreadMessage]:
-        prior = ts - timedelta(hours=float(self.rng.uniform(1, 120)))
-        return [ThreadMessage(from_addr=to, timestamp=prior.replace(microsecond=0),
-                              subject=subject.removeprefix("Re: "), body=body)]
+    def thread_of(self, t: Tenant, to: str, ts: datetime, subject: str, sender: str, body: str = "",
+                  real: bool = True) -> list[ThreadMessage]:
+        """Quoted earlier message from the recipient. A real one is also written to the sent-mail log;
+        a forged one (attacker-made) exists only inside the email."""
+        prior = (ts - timedelta(hours=float(self.rng.uniform(1, 120)))).replace(microsecond=0)
+        subject = subject.removeprefix("Re: ")
+        if real:
+            self.sent.append(SentMessage(tenant_id=t.tenant_id, from_addr=to, to_addr=sender,
+                                         timestamp=prior, subject=subject))
+        return [ThreadMessage(from_addr=to, timestamp=prior, subject=subject, body=body)]
+
+    def fake_reply(self, t: Tenant, to: str, ts: datetime, subject: str,
+                   sender: str) -> tuple[str, list[ThreadMessage] | None]:
+        """Attacker-made 'RE:/FW:' subject, sometimes about a plausible topic, sometimes with a forged thread."""
+        base = subject if self.rng.random() < 0.5 else self.pick(
+            [*T.INDUSTRY_TOPICS[t.industry.value], f"Invoice {self.rng.integers(10000, 99999)}", "Q3 budget review"])
+        subj = f"{self.pick(REPLY_PREFIXES)}{base[0].upper()}{base[1:]}"
+        forged = self.thread_of(t, to, ts, base, sender, real=False) if self.rng.random() < 0.5 else None
+        return subj, forged
 
     # ---- legit ---------------------------------------------------------------------------
     def legit(self) -> Email:
@@ -285,12 +307,20 @@ class Generator:
             return self.hard_negative(t, to, ts)
         if r < 0.45:                                            # internal
             sender = self.pick([m for m in t.mailboxes if m != to])
+            if self.rng.random() < 0.08:                        # forwarding vendor mail to a colleague
+                v: Contact = self.pick(self.w.vendors[t.tenant_id])
+                s = self.slots(t, to, t.names[sender], vendor_name=v.vendor_name)
+                fwd_subj = self.pick(T.LEGIT_VENDOR)[0].format(**s)
+                body = self.text("FYI, forwarding this from {vendor_name}. Can you take a look before {day}?", s)
+                return self.email(t, to, ts, sender, t.names[sender], f"{self.pick(['FW: ', 'Fwd: '])}{fwd_subj}",
+                                  body, "legit", "legit:forward")
             s = self.slots(t, to, t.names[sender])
             subj, tpl = self.pick(T.LEGIT_INTERNAL)
             subj = subj.format(**s)
             atts = [self.attachment(self.pick(["notes.pdf", "summary.docx", "forecast.xlsx", "model.xlsm"]))] \
                 if "notes" in subj.lower() or self.rng.random() < 0.1 else []
-            thread = self.thread_of(to, ts, subj) if subj.startswith("Re:") or self.rng.random() < 0.2 else None
+            thread = self.thread_of(t, to, ts, subj, sender) if subj.startswith("Re:") or self.rng.random() < 0.2 \
+                else None
             return self.email(t, to, ts, sender, t.names[sender], subj, self.text(tpl, s), "legit",
                               "legit:internal", attachments=atts, thread=thread)
         if r < 0.75:                                            # vendor
@@ -302,7 +332,8 @@ class Generator:
             atts = [self.attachment(f"{s['inv']}.pdf" if "Invoice" in subj else "quote.pdf")] \
                 if any(k in subj for k in ("Invoice", "Quote", "price")) else []
             urls = [Url(href=url, anchor_text=url)] if "{url}" in tpl else []
-            thread = self.thread_of(to, ts, subj) if subj.startswith("Re:") or self.rng.random() < 0.3 else None
+            thread = self.thread_of(t, to, ts, subj, c.addr) if subj.startswith("Re:") or self.rng.random() < 0.3 \
+                else None
             return self.email(t, to, ts, c.addr, c.name, subj, self.text(tpl, s), "legit", "legit:vendor",
                               auth=self.auth(0.95), urls=urls, attachments=atts, thread=thread)
         if r < 0.90:                                            # partners / customers (some on freemail)
@@ -320,7 +351,7 @@ class Generator:
             subj = subj.format(**s)
             return self.email(t, to, ts, c.addr, c.name, subj, self.text(tpl, s), "legit", "legit:partner",
                               auth=self.auth(0.93),
-                              thread=self.thread_of(to, ts, subj) if self.rng.random() < 0.3 else None)
+                              thread=self.thread_of(t, to, ts, subj, c.addr) if self.rng.random() < 0.3 else None)
         display, from_addr, subj, tpl = self.pick(T.LEGIT_NOTIFICATION)  # SaaS notifications, newsletters
         dom = from_addr.split("@")[1]
         url, url2 = f"https://{dom}/r/{self.rng.integers(16**6):06x}", f"https://{dom}/unsubscribe"
@@ -330,7 +361,10 @@ class Generator:
         # Notification platforms often set Reply-To to a person or a separate domain.
         reply_to = self.pick([self.pick(t.mailboxes), f"editors@{dom.split('.')[0]}-news.com"]) \
             if self.rng.random() < 0.3 else None
-        return self.email(t, to, ts, from_addr, display, subj.format(**s), self.text(tpl, s, wrap=False),
+        subj = subj.format(**s)
+        if display == "Industry Weekly" and self.rng.random() < 0.4:
+            subj = f"📰 {subj}"
+        return self.email(t, to, ts, from_addr, display, subj, self.text(tpl, s, wrap=False),
                           "legit", "legit:notification", urls=urls, reply_to=reply_to)
 
     def hard_negative(self, t: Tenant, to: str, ts: datetime) -> Email:
@@ -366,6 +400,7 @@ class Generator:
             url, url2 = f"https://{PROMO_DOMAIN}/upgrade?c=annual30", f"https://{PROMO_DOMAIN}/unsubscribe"
             s = self.slots(t, to, "SaaSMetrics", url=url, url2=url2)
             subj, tpl = T.HN_PROMO
+            subj = f"🎉 {subj}" if self.rng.random() < 0.5 else subj   # legit marketing uses emojis too
             return self.email(t, to, ts, f"offers@{PROMO_DOMAIN}", "SaaSMetrics", subj, self.text(tpl, s, False),
                               "legit", sc,
                               urls=[Url(href=url, anchor_text="Upgrade now"), Url(href=url2, anchor_text="Unsubscribe")])
@@ -393,7 +428,7 @@ class Generator:
             subj, tpl = T.HN_ENCRYPTED_ZIP
             return self.email(t, to, ts, c.addr, c.name, subj.format(**s), self.text(tpl, s), "legit", sc,
                               attachments=[self.attachment(f"documents_{s['inv']}.zip")],
-                              thread=self.thread_of(to, ts, subj.format(**s)))
+                              thread=self.thread_of(t, to, ts, subj.format(**s), c.addr))
         if kind == "internal_tool":                             # SaaS tool sending as the tenant, DMARC unaligned
             s = self.slots(t, to, f"{t.name} Events", url=f"https://events.{t.domain}/rsvp")
             return self.email(t, to, ts, f"events@{t.domain}", f"{t.name} Events", "Team offsite: please RSVP",
@@ -431,6 +466,7 @@ class Generator:
         else:
             sender, display = f"{self.pick(['news', 'deals', 'info', 'promo'])}@{dom}", self.fake.company()
         p_pass = float(self.rng.uniform(0.2, 0.9))
+        style = self.rng.random()                                # emoji / shouting, per campaign
         out = []
         for (t, to), ts in zip(self.targets(k, int(self.rng.integers(2, 6))), self.spread(start, k, 36)):
             href = f"https://bit.ly/{self.rng.integers(16**6):06x}" if self.rng.random() < 0.2 else \
@@ -439,7 +475,12 @@ class Generator:
             urls = [Url(href=href, anchor_text="Book a time" if cold_outreach else "Shop now")]
             if "{url2}" in tpl:
                 urls.append(Url(href=s["url2"], anchor_text="unsubscribe"))
-            out.append(self.email(t, to, ts, sender, display, subj_t.format(**s), self.text(tpl, s, cold_outreach),
+            subj = subj_t.format(**s)
+            if not cold_outreach and style < 0.4:
+                subj = f"{self.pick(EMOJIS)} {subj}"
+            elif not cold_outreach and style < 0.6:
+                subj = subj.upper()
+            out.append(self.email(t, to, ts, sender, display, subj, self.text(tpl, s, cold_outreach),
                                   "spam", "spam:cold_outreach" if cold_outreach else "spam:bulk",
                                   auth=self.auth(p_pass), urls=urls))
         return out
@@ -486,12 +527,19 @@ class Generator:
             self.w.intel.url_verdicts.setdefault(dom, str(self.pick(["malicious", "suspicious"])))
         sender = f"{self.pick(['no-reply', 'security', 'support', 'admin'])}@{dom}"
         p_pass = float(self.rng.choice([0.9, 0.3]))
+        fake = self.rng.random() < P_FAKE_REPLY["phishing"]
+        warn = not fake and self.rng.random() < 0.2
         out = []
         for (t, to), ts in zip(tgt, self.spread(start, len(tgt), 24)):
             href = f"https://{land}/{self.pick(['login', 'verify', 'secure'])}?id={self.rng.integers(16**8):08x}"
             s = self.slots(t, to, display, url=href)
-            out.append(self.email(t, to, ts, sender, display, subj_t.format(**s), self.text(tpl, s, False),
-                                  "phishing", f"phishing:{kind}", auth=self.auth(p_pass),
+            subj, thread = subj_t.format(**s), None
+            if fake:
+                subj, thread = self.fake_reply(t, to, ts, subj, sender)
+            elif warn:
+                subj = f"⚠️ {subj}"
+            out.append(self.email(t, to, ts, sender, display, subj, self.text(tpl, s, False),
+                                  "phishing", f"phishing:{kind}", auth=self.auth(p_pass), thread=thread,
                                   urls=[Url(href=href, anchor_text=self.pick([anchor, "Review", "Sign in"]))]))
         return out
 
@@ -502,6 +550,8 @@ class Generator:
         kind = self.pick(["gift_cards", "gift_cards", "wire_lookalike", "wire_freemail", "payroll", "direct_spoof",
                           "vendor_invoice", "vendor_invoice", "compromised_vendor"])
         plain = self.rng.random() < P_PLAIN["bec"]
+        fake = kind != "compromised_vendor" and self.rng.random() < P_FAKE_REPLY["bec"]
+        shout = self.rng.random() < 0.15
         out = []
         for ts in self.spread(start, k, 8):
             free = str(self.pick(sorted(FREEMAIL_DOMAINS)))
@@ -543,11 +593,16 @@ class Generator:
                     auth = self.auth(0.7)
                 else:                                           # hard positive: real vendor mailbox taken over
                     sender = v.addr
-                    thread = self.thread_of(to, ts, f"Invoice {self.rng.integers(10000, 99999)}",
+                    thread = self.thread_of(t, to, ts, f"Invoice {self.rng.integers(10000, 99999)}", sender,
                                             "Thanks, we have received the invoice and scheduled it.")
             s = self.slots(t, to, display)
             scenario = f"hard_pos:{kind}" if kind == "compromised_vendor" else f"bec:{kind}"
-            out.append(self.email(t, to, ts, sender, display, subj.format(**s), self.text(tpl, s), "bec",
+            subject = subj.format(**s)
+            if fake:
+                subject, thread = self.fake_reply(t, to, ts, subject.removeprefix("Re: "), sender)
+            elif shout:
+                subject = subject.upper()
+            out.append(self.email(t, to, ts, sender, display, subject, self.text(tpl, s), "bec",
                                   scenario, auth=auth, reply_to=reply_to, attachments=atts, thread=thread))
         return out
 
@@ -565,7 +620,7 @@ class Generator:
                 out.append(self.email(t, to, ts, c.addr, c.name, subj.format(**s), self.text(tpl, s), "malware",
                                       "hard_pos:password_zip",
                                       attachments=[self.attachment(fname.format(**s), True, register_p=0.0)],
-                                      thread=self.thread_of(to, ts, subj.format(**s))))
+                                      thread=self.thread_of(t, to, ts, subj.format(**s), c.addr)))
             return out
         subj_t, tpl, fname = self.pick(T.MALWARE)
         if self.rng.random() < P_PLAIN["malware"]:              # ordinary vendor wording, risky attachment
@@ -600,7 +655,7 @@ def add_label_noise(emails: list[Email], rate: float, rng: np.random.Generator) 
     return len(idx)
 
 
-def generate(cfg: dict) -> tuple[list[Tenant], list[Email], ThreatIntel, int]:
+def generate(cfg: dict) -> tuple[list[Tenant], list[Email], ThreatIntel, int, list[SentMessage]]:
     world = World(cfg)
     gen = Generator(world)
     dcfg = cfg["data"]
@@ -619,10 +674,12 @@ def generate(cfg: dict) -> tuple[list[Tenant], list[Email], ThreatIntel, int]:
     end = world.start + timedelta(days=world.days)
     emails = sorted((e for e in emails if e.timestamp < end), key=lambda e: e.timestamp)
     n_noisy = add_label_noise(emails, dcfg["label_noise"], gen.rng)
-    return world.tenants, emails, world.intel, n_noisy
+    sent = sorted((m for m in gen.sent if m.timestamp < end), key=lambda m: m.timestamp)
+    return world.tenants, emails, world.intel, n_noisy, sent
 
 
-def write_outputs(cfg: dict, tenants: list[Tenant], emails: list[Email], intel: ThreatIntel) -> None:
+def write_outputs(cfg: dict, tenants: list[Tenant], emails: list[Email], intel: ThreatIntel,
+                  sent: list[SentMessage]) -> None:
     raw, sample = Path(cfg["paths"]["raw"]), Path(cfg["paths"]["sample"])
     raw.mkdir(parents=True, exist_ok=True)
     sample.mkdir(parents=True, exist_ok=True)
@@ -632,6 +689,8 @@ def write_outputs(cfg: dict, tenants: list[Tenant], emails: list[Email], intel: 
     intel.save(raw / "intel.json")
     with open(raw / "emails.jsonl", "w") as f:
         f.writelines(e.model_dump_json() + "\n" for e in emails)
+    with open(raw / "sent.jsonl", "w") as f:
+        f.writelines(m.model_dump_json() + "\n" for m in sent)
     # Committed sample: 300 legit + 50 of each attack class (oversampled so every class is visible).
     rng = np.random.default_rng(cfg["seed"])
     picked: list[int] = []
@@ -662,10 +721,12 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--config", default=None)
     cfg = load_config(ap.parse_args().config)
-    tenants, emails, intel, n_noisy = generate(cfg)
-    write_outputs(cfg, tenants, emails, intel)
-    print(f"wrote {cfg['paths']['raw']}/{{emails.jsonl,tenants.json,intel.json}} and {cfg['paths']['sample']}/")
+    tenants, emails, intel, n_noisy, sent = generate(cfg)
+    write_outputs(cfg, tenants, emails, intel, sent)
+    print(f"wrote {cfg['paths']['raw']}/{{emails,sent}}.jsonl, tenants.json, intel.json and {cfg['paths']['sample']}/")
     print_stats(cfg, emails, n_noisy)
+    replies = Counter(e.true_category for e in emails if e.subject.lower().startswith(("re:", "fw:", "fwd:")))
+    print(f"sent-mail log: {len(sent)} messages; reply/forward subjects by class: {dict(replies)}")
 
 
 if __name__ == "__main__":

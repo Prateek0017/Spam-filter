@@ -10,7 +10,7 @@ import pytest
 from src.common.config import load_config
 from src.data.generate import generate
 from src.data.schema import Action, Attachment, Email
-from src.features.extract import FeatureExtractor, email_text
+from src.features.extract import FeatureExtractor, email_text, merge_stream
 from src.models.text import make_vectorizer
 from src.pipeline.cascade import Cascade
 from src.services import build_services
@@ -41,23 +41,23 @@ class StubIntent:
 def world():
     cfg = load_config()
     cfg["data"]["n_emails"] = 600
-    tenants, emails, intel, _ = generate(cfg)
-    return cfg, tenants, emails, intel
+    tenants, emails, intel, _, sent = generate(cfg)
+    return cfg, tenants, emails, intel, sent
 
 
 def make_cascade(world, proba: list[float], **intents: float) -> Cascade:
-    cfg, tenants, emails, intel = world
+    cfg, tenants, emails, intel, sent = world
     vec = make_vectorizer().fit([email_text(e) for e in emails])
     fx = FeatureExtractor(tenants, build_services(cfg, intel=intel), vec)
     cas = Cascade(cfg, fx, {"vectorizer": vec, "lr": StubLR()}, StubLGBM(proba), StubIntent(**intents))
-    for e in emails:
-        cas.observe(e)
+    for item in merge_stream(emails, sent):
+        cas.observe(item)
     return cas
 
 
 def internal_email(world, **kw) -> Email:
     """An email from the colleague who has sent the most mail in tenant 0 (i.e. an established sender)."""
-    _, tenants, emails, _ = world
+    _, tenants, emails, _, _ = world
     t = tenants[0]
     sender = Counter(e.from_addr for e in emails if e.from_addr in t.names).most_common(1)[0][0]
     last = [e for e in emails if e.from_addr == sender][-1]        # same style -> no topic shift
@@ -91,7 +91,7 @@ def test_gray_zone_intent_check(world) -> None:
 
 
 def test_tier0_block_and_async_virus_scan(world) -> None:
-    _, tenants, _, intel = world
+    _, tenants, _, intel, _ = world
     t = tenants[0]
     lookalike = internal_email(world).model_copy(update={"from_addr": f"it@{t.domain.split('.')[0]}-secure.com"})
     v = make_cascade(world, [0.95, 0.01, 0.01, 0.02, 0.01]).classify(lookalike)

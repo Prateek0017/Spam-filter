@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from src.data.io import load_tenants
-from src.data.schema import CATEGORIES, Action, Email
+from src.data.schema import CATEGORIES, Action, Email, SentMessage
 from src.features.extract import FEATURES, FeatureExtractor, email_text
 from src.pipeline.intent import RISKY_INTENTS
 from src.rules.engine import blocks, run_rules
@@ -67,9 +67,12 @@ class Cascade:
             fx.services = services
         return cls(cfg, fx, text_model, joblib.load(m / "lgbm.joblib"), joblib.load(m / "intent.joblib"))
 
-    def observe(self, email: Email) -> None:
-        """Add a delivered email to sender history."""
-        self.fx.update(email, self.vec.transform([email_text(email)]))
+    def observe(self, item: Email | SentMessage) -> None:
+        """Add a delivered email, or a message the mailbox sent, to relationship history."""
+        if isinstance(item, SentMessage):
+            self.fx.record_sent(item)
+        else:
+            self.fx.update(item, self.vec.transform([email_text(item)]))
 
     def classify(self, email: Email) -> Verdict:
         t0 = time.perf_counter()

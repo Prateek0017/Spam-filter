@@ -56,6 +56,15 @@ class ThreadMessage(BaseModel):
     body: str = ""
 
 
+class SentMessage(BaseModel):
+    """An email a tenant mailbox sent (the sent-mail log). Feeds relationship history only."""
+    tenant_id: str
+    from_addr: str                     # the tenant mailbox
+    to_addr: str                       # the external or internal correspondent
+    timestamp: datetime
+    subject: str = ""
+
+
 class Email(BaseModel):
     message_id: str
     tenant_id: str
