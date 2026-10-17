@@ -40,8 +40,9 @@ TENANT_SPECS = [
 ROLES = ["CEO", "CFO", "Controller", "AP", "HR", "IT"]          # first six mailboxes
 VENDOR_SUFFIXES = ["supply", "industrial", "systems", "logistics", "partners", "group", "labs", "tech"]
 BRAND_SENDERS = {"Microsoft 365": "microsoft.com", "Microsoft Security": "microsoft.com",
+                 "Microsoft account team": "microsoft.com",
                  "DocuSign": "docusign.net", "PayPal": "paypal.com", "DHL Express": "dhl.com"}
-LEGIT_EXTRA_DOMAINS = ["industryweekly.com", "saasmetrics.io"]   # newsletter + promo senders
+LEGIT_EXTRA_DOMAINS = ["industryweekly.com", "saasmetrics.io", "live.com", "sharepoint.com"]
 PROMO_DOMAIN = "saasmetrics.io"
 HOMOGLYPHS = {"o": "0", "l": "1", "i": "l", "m": "rn", "e": "3"}
 
@@ -94,6 +95,10 @@ class World:
                     self.intel.ip_reputation[ip] = round(float(self.rng.uniform(*ip_rep)), 3)
                     self.intel.ip_country[ip] = country
 
+    def legit_ip_rep(self) -> tuple[float, float]:
+        """Most legit senders have clean IPs; a few sit on shared hosting that is blocklisted."""
+        return (0.05, 0.18) if self.rng.random() < 0.05 else (0.6, 1.0)
+
     def old_date(self) -> date:
         return (self.start - timedelta(days=int(self.rng.integers(3 * 365, 25 * 365)))).date()
 
@@ -142,8 +147,10 @@ class World:
         return dom
 
     # ---- tenants & correspondents -----------------------------------------------------------
-    def person(self, domain: str) -> tuple[str, str]:
-        first, last = self.fake.unique.first_name(), self.fake.last_name()
+    def person(self, domain: str, unique: bool = False) -> tuple[str, str]:
+        """Employees get unique first names (display-name rule matches on them); outsiders may collide."""
+        first = self.fake.unique.first_name() if unique else self.fake.first_name()
+        last = self.fake.last_name()
         return f"{first.lower()}.{last.lower()}@{domain}", f"{first} {last}"
 
     def _build(self, n_tenants: int, n_mailboxes: int) -> None:
@@ -154,20 +161,22 @@ class World:
         for i, (name, domain, industry) in enumerate(TENANT_SPECS[:n_tenants]):
             tid = f"t{i:02d}"
             self.register(domain, self.old_date(), (0.85, 1.0), "clean")
-            people = [self.person(domain) for _ in range(n_mailboxes)]
+            people = [self.person(domain, unique=True) for _ in range(n_mailboxes)]
             vendors, vendor_domains = [], []
             for _ in range(8):
                 last, suffix = self.fake.last_name(), str(self.rng.choice(VENDOR_SUFFIXES))
                 vdom = f"{last.lower()}{suffix}.com"
                 vendor_domains.append(vdom)
-                self.register(vdom, self.old_date(), (0.7, 1.0), "clean")
+                self.register(vdom, self.old_date(), self.legit_ip_rep(), "clean")
                 vendors += [Contact(*self.person(vdom), vdom, f"{last} {suffix.title()}") for _ in range(2)]
             partners = []
             for _ in range(10):
                 pdom = str(self.rng.choice(sorted(FREEMAIL_DOMAINS))) if self.rng.random() < 0.3 else \
                     f"{self.fake.last_name().lower()}{self.rng.choice(['consulting', 'co', 'advisors', 'hq'])}.com"
+                if self.rng.random() < 0.1:                     # sister company: vendor name, other TLD
+                    pdom = vendor_domains[int(self.rng.integers(8))].replace(".com", ".net")
                 if pdom not in FREEMAIL_DOMAINS:
-                    self.register(pdom, self.old_date(), (0.6, 1.0), "clean")
+                    self.register(pdom, self.old_date(), self.legit_ip_rep(), "clean")
                 partners.append(Contact(*self.person(pdom), pdom))
             self.tenants.append(Tenant(
                 tenant_id=tid, name=name, domain=domain, industry=industry,
@@ -205,12 +214,15 @@ class Generator:
                  amount=f"${self.rng.integers(2, 95) * 1000 + self.rng.integers(0, 999):,}.00",
                  item=self.pick(T.ITEMS), doc=self.pick(T.DOCS), pct=str(self.pick([50, 60, 70, 80, 90])),
                  country=self.pick(T.COUNTRIES), tenant_domain=tenant.domain, tenant_name=tenant.name,
-                 vendor_name="", url="", url2="")
+                 vendor_name=self.pick(self.w.vendors[tenant.tenant_id]).vendor_name, url="", url2="")
         s.update(extra)
         return s
 
     def text(self, tpl: str, s: dict[str, str], wrap: bool = True) -> str:
         core = tpl.format(**s)
+        for _ in range(int(self.rng.choice([0, 1, 2], p=[0.4, 0.4, 0.2]))):
+            filler = self.pick(T.FILLERS)
+            core = f"{filler} {core}" if self.rng.random() < 0.3 else f"{core} {filler}"
         if not wrap:
             return core
         return f"{self.pick(T.GREETINGS).format(**s)}\n\n{core}\n\n{self.pick(T.SIGNOFFS).format(**s)}"
@@ -261,7 +273,7 @@ class Generator:
         t: Tenant = self.pick(self.w.tenants)
         to, ts = self.pick(t.mailboxes), self.business_time()
         r = self.rng.random()
-        if r < 0.06:
+        if r < 0.08:
             return self.hard_negative(t, to, ts)
         if r < 0.45:                                            # internal
             sender = self.pick([m for m in t.mailboxes if m != to])
@@ -284,14 +296,22 @@ class Generator:
             urls = [Url(href=url, anchor_text=url)] if "{url}" in tpl else []
             thread = self.thread_of(to, ts, subj) if subj.startswith("Re:") or self.rng.random() < 0.3 else None
             return self.email(t, to, ts, c.addr, c.name, subj, self.text(tpl, s), "legit", "legit:vendor",
-                              auth=self.auth(0.97), urls=urls, attachments=atts, thread=thread)
+                              auth=self.auth(0.95), urls=urls, attachments=atts, thread=thread)
         if r < 0.90:                                            # partners / customers (some on freemail)
             c = self.pick(self.w.partners[t.tenant_id])
+            if self.rng.random() < 0.2:                         # real OneDrive / SharePoint share
+                url = self.pick([f"https://onedrive.live.com/view?id={self.rng.integers(16**8):08x}",
+                                 f"https://{t.domain.split('.')[0]}-my.sharepoint.com/:w:/{self.rng.integers(16**8):08x}"])
+                s = self.slots(t, to, c.name, url=url)
+                subj, tpl = self.pick(T.LEGIT_SHARED_DOC)
+                return self.email(t, to, ts, c.addr, c.name, subj.format(**s), self.text(tpl, s), "legit",
+                                  "legit:shared_doc", auth=self.auth(0.95),
+                                  urls=[Url(href=url, anchor_text=self.pick(["Open in OneDrive", url]))])
             s = self.slots(t, to, c.name)
             subj, tpl = self.pick(T.LEGIT_INTERNAL[:5])
             subj = subj.format(**s)
             return self.email(t, to, ts, c.addr, c.name, subj, self.text(tpl, s), "legit", "legit:partner",
-                              auth=self.auth(0.95),
+                              auth=self.auth(0.93),
                               thread=self.thread_of(to, ts, subj) if self.rng.random() < 0.3 else None)
         display, from_addr, subj, tpl = self.pick(T.LEGIT_NOTIFICATION)  # SaaS notifications, newsletters
         dom = from_addr.split("@")[1]
@@ -299,46 +319,77 @@ class Generator:
         s = self.slots(t, to, display, url=url, url2=url2)
         urls = [Url(href=url, anchor_text="View")] + ([Url(href=url2, anchor_text="Unsubscribe")]
                                                        if "{url2}" in tpl else [])
+        # Notification platforms often set Reply-To to a person or a separate domain.
+        reply_to = self.pick([self.pick(t.mailboxes), f"editors@{dom.split('.')[0]}-news.com"]) \
+            if self.rng.random() < 0.3 else None
         return self.email(t, to, ts, from_addr, display, subj.format(**s), self.text(tpl, s, wrap=False),
-                          "legit", "legit:notification", urls=urls)
+                          "legit", "legit:notification", urls=urls, reply_to=reply_to)
 
     def hard_negative(self, t: Tenant, to: str, ts: datetime) -> Email:
-        kind = self.pick(["exec_urgent_payment", "it_password", "promo", "new_vendor", "vendor_bank_change"])
+        kind = self.pick(["exec_urgent_payment", "it_password", "promo", "new_vendor", "vendor_bank_change",
+                          "personal_account", "encrypted_zip", "rebrand", "internal_tool", "exec_gift_cards"])
         ex = t.executives
+        sc = f"hard_neg:{kind}"
         if kind == "exec_urgent_payment":
-            v: Contact = self.pick(self.w.vendors[t.tenant_id])
             sender, to = ex["CFO"], self.pick([ex["AP"], ex["Controller"]])
-            s = self.slots(t, to, t.names[sender], vendor_name=v.vendor_name)
-            subj, tpl = T.HN_EXEC_URGENT_PAYMENT
-            return self.email(t, to, ts, sender, t.names[sender], subj.format(**s), self.text(tpl, s),
-                              "legit", f"hard_neg:{kind}")
+            s = self.slots(t, to, t.names[sender])
+            subj, tpl = self.pick(T.HN_EXEC_URGENT_PAYMENT)
+            return self.email(t, to, ts, sender, t.names[sender], subj.format(**s), self.text(tpl, s), "legit", sc)
+        if kind == "exec_gift_cards":                          # real exec, same words as the BEC version
+            sender = self.pick([ex["CEO"], ex["HR"]])
+            s = self.slots(t, to, t.names[sender])
+            subj, tpl = T.BEC_GIFT_CARDS[1]
+            return self.email(t, to, ts, sender, t.names[sender], subj, self.text(tpl, s), "legit", sc)
         if kind == "it_password":
             url = f"https://password.{t.domain}/reset"
             s = self.slots(t, to, "IT Service Desk", url=url)
-            subj, tpl = T.HN_IT_PASSWORD
-            return self.email(t, to, ts, ex["IT"], "IT Service Desk", subj, self.text(tpl, s), "legit",
-                              f"hard_neg:{kind}", urls=[Url(href=url, anchor_text=url)])
+            subj, tpl = self.pick(T.HN_IT_PASSWORD)
+            return self.email(t, to, ts, ex["IT"], "IT Service Desk", subj, self.text(tpl, s), "legit", sc,
+                              urls=[Url(href=url, anchor_text=url)])
         if kind == "promo":
             url, url2 = f"https://{PROMO_DOMAIN}/upgrade?c=annual30", f"https://{PROMO_DOMAIN}/unsubscribe"
             s = self.slots(t, to, "SaaSMetrics", url=url, url2=url2)
             subj, tpl = T.HN_PROMO
             return self.email(t, to, ts, f"offers@{PROMO_DOMAIN}", "SaaSMetrics", subj, self.text(tpl, s, False),
-                              "legit", f"hard_neg:{kind}",
+                              "legit", sc,
                               urls=[Url(href=url, anchor_text="Upgrade now"), Url(href=url2, anchor_text="Unsubscribe")])
-        if kind == "new_vendor":                                # first-time sender, established domain
+        if kind in ("new_vendor", "rebrand"):                   # first-time sender
             last, suffix = self.fake.last_name(), str(self.pick(VENDOR_SUFFIXES))
-            dom = f"{last.lower()}{suffix}.com"
-            self.w.register(dom, self.w.old_date(), (0.7, 1.0), "clean")
+            dom = f"{last.lower()}{suffix}{'-group' if kind == 'rebrand' else ''}.com"
+            created = (ts - timedelta(days=int(self.rng.integers(5, 25)))) if kind == "rebrand" else self.w.old_date()
+            self.w.register(dom, created, self.w.legit_ip_rep(), "clean")
             addr, name = self.w.person(dom)
             s = self.slots(t, to, name, vendor_name=f"{last} {suffix.title()}")
-            subj, tpl = T.HN_NEW_VENDOR
-            return self.email(t, to, ts, addr, name, subj.format(**s), self.text(tpl, s), "legit",
-                              f"hard_neg:{kind}", attachments=[self.attachment("capabilities.pdf")])
+            subj, tpl = T.HN_NEW_VENDOR if kind == "new_vendor" else T.HN_REBRAND
+            atts = [self.attachment("capabilities.pdf")] if kind == "new_vendor" else []
+            return self.email(t, to, ts, addr, name, subj.format(**s), self.text(tpl, s), "legit", sc,
+                              attachments=atts)
+        if kind == "personal_account":                          # employee writing from personal freemail
+            emp = self.pick(t.mailboxes[6:])
+            name = t.names[emp]
+            addr = f"{name.lower().replace(' ', '.')}{self.rng.integers(1, 99)}@{self.pick(sorted(FREEMAIL_DOMAINS))}"
+            s = self.slots(t, to, name)
+            subj, tpl = T.HN_PERSONAL_ACCOUNT
+            return self.email(t, to, ts, addr, name, subj, self.text(tpl, s), "legit", sc)
+        if kind == "encrypted_zip":                             # legit password-protected archive
+            c: Contact = self.pick(self.w.partners[t.tenant_id] + self.w.vendors[t.tenant_id])
+            s = self.slots(t, to, c.name)
+            subj, tpl = T.HN_ENCRYPTED_ZIP
+            return self.email(t, to, ts, c.addr, c.name, subj.format(**s), self.text(tpl, s), "legit", sc,
+                              attachments=[self.attachment(f"documents_{s['inv']}.zip")],
+                              thread=self.thread_of(to, ts, subj.format(**s)))
+        if kind == "internal_tool":                             # SaaS tool sending as the tenant, DMARC unaligned
+            s = self.slots(t, to, f"{t.name} Events", url=f"https://events.{t.domain}/rsvp")
+            return self.email(t, to, ts, f"events@{t.domain}", f"{t.name} Events", "Team offsite: please RSVP",
+                              self.text("Please RSVP for the team offsite on {day} here: {url}", s), "legit", sc,
+                              auth=AuthResults(spf="softfail", dkim="none", dmarc="fail"), ip=self.w.ip(),
+                              urls=[Url(href=s["url"], anchor_text="RSVP")])
         v = self.pick(self.w.vendors[t.tenant_id])              # legit vendor announcing a bank change
         to = self.pick([ex["AP"], ex["CFO"], ex["Controller"]])
         s = self.slots(t, to, v.name)
         subj, tpl = T.HN_VENDOR_BANK_CHANGE
-        return self.email(t, to, ts, v.addr, v.name, subj, self.text(tpl, s), "legit", f"hard_neg:{kind}")
+        return self.email(t, to, ts, v.addr, v.name, subj, self.text(tpl, s), "legit", sc,
+                          attachments=[self.attachment("bank_details.pdf")])
 
     # ---- attack campaigns ------------------------------------------------------------------
     def targets(self, k: int, n_tenants: int) -> list[tuple[Tenant, str]]:
@@ -355,16 +406,26 @@ class Generator:
         self.w.intel.domain_created[dom] = (created - timedelta(days=int(self.rng.integers(0, 500)))).date().isoformat()
         self.w.intel.url_verdicts[dom] = str(self.pick(["suspicious", "malicious", "suspicious"]))
         subj_t, tpl = self.pick(T.SPAM)
-        sender, display = f"{self.pick(['news', 'deals', 'info', 'promo'])}@{dom}", self.fake.company()
-        p_pass = float(self.rng.uniform(0.2, 0.8))
+        cold_outreach = "{item}" in tpl                         # B2B sales spam: a "person", often on freemail
+        if cold_outreach:
+            first, last = self.fake.first_name(), self.fake.last_name()
+            display = f"{first} {last}"
+            sdom = str(self.pick(sorted(FREEMAIL_DOMAINS))) if self.rng.random() < 0.4 else dom
+            sender = f"{first.lower()}.{last.lower()}@{sdom}"
+        else:
+            sender, display = f"{self.pick(['news', 'deals', 'info', 'promo'])}@{dom}", self.fake.company()
+        p_pass = float(self.rng.uniform(0.2, 0.9))
         out = []
         for (t, to), ts in zip(self.targets(k, int(self.rng.integers(2, 6))), self.spread(start, k, 36)):
             href = f"https://bit.ly/{self.rng.integers(16**6):06x}" if self.rng.random() < 0.2 else \
                 f"http://{dom}/p/{self.rng.integers(16**6):06x}"
             s = self.slots(t, to, display, url=href, url2=f"http://{dom}/unsub")
-            urls = [Url(href=href, anchor_text="Shop now"), Url(href=s["url2"], anchor_text="unsubscribe")]
-            out.append(self.email(t, to, ts, sender, display, subj_t.format(**s), self.text(tpl, s, False),
-                                  "spam", "spam:bulk", auth=self.auth(p_pass), urls=urls))
+            urls = [Url(href=href, anchor_text="Book a time" if cold_outreach else "Shop now")]
+            if "{url2}" in tpl:
+                urls.append(Url(href=s["url2"], anchor_text="unsubscribe"))
+            out.append(self.email(t, to, ts, sender, display, subj_t.format(**s), self.text(tpl, s, cold_outreach),
+                                  "spam", "spam:cold_outreach" if cold_outreach else "spam:bulk",
+                                  auth=self.auth(p_pass), urls=urls))
         return out
 
     def phishing_campaign(self, k: int) -> list[Email]:
@@ -373,25 +434,28 @@ class Generator:
         if kind == "compromised_account":                       # hard positive: real, trusted sender
             t = self.pick(self.w.tenants)
             c: Contact = self.pick(self.w.vendors[t.tenant_id] + self.w.partners[t.tenant_id])
-            land = self.w.landing_domain(start)
+            # Attackers often host the credential page on real SharePoint: clean, decades-old domain.
+            land = "sharepoint.com" if self.rng.random() < 0.4 else self.w.landing_domain(start)
             out = []
             for ts in self.spread(start, min(k, 3), 6):
                 to = self.pick(t.mailboxes)
-                href = f"https://{land}/onedrive/{self.rng.integers(16**8):08x}"
+                href = f"https://{c.domain.split('.')[0]}-my.{land}/:b:/{self.rng.integers(16**8):08x}" \
+                    if land == "sharepoint.com" else f"https://{land}/onedrive/{self.rng.integers(16**8):08x}"
                 s = self.slots(t, to, c.name, url=href)
-                subj, tpl = T.PHISH_SHARED_DOC
+                subj, tpl = self.pick(T.LEGIT_SHARED_DOC)        # same words as a real share
                 out.append(self.email(t, to, ts, c.addr, c.name, subj.format(**s), self.text(tpl, s),
                                       "phishing", "hard_pos:compromised_account",
                                       urls=[Url(href=href, anchor_text="Open in OneDrive")]))
             return out
         if kind == "brand":
             display, subj_t, tpl = self.pick(T.PHISH_BRAND)
-            dom = self.w.attacker_domain(BRAND_SENDERS[display], start)
-            anchor = f"https://login.{BRAND_SENDERS[display]}/"
+            brand = BRAND_SENDERS[display]
+            dom = self.w.attacker_domain(brand, start)
+            anchor = f"https://login.{brand}/"
             tgt = self.targets(k, int(self.rng.integers(1, 4)))
         else:
             t = self.pick(self.w.tenants)
-            display, subj_t, tpl = T.PHISH_TENANT_IT
+            display, subj_t, tpl = self.pick(T.PHISH_TENANT_IT)
             dom = self.w.attacker_domain(t.domain, start)
             anchor = f"https://password.{t.domain}/"
             tgt = [(t, self.pick(t.mailboxes)) for _ in range(k)]
@@ -406,26 +470,29 @@ class Generator:
             s = self.slots(t, to, display, url=href)
             out.append(self.email(t, to, ts, sender, display, subj_t.format(**s), self.text(tpl, s, False),
                                   "phishing", f"phishing:{kind}", auth=self.auth(p_pass),
-                                  urls=[Url(href=href, anchor_text=anchor)]))
+                                  urls=[Url(href=href, anchor_text=self.pick([anchor, "Review", "Sign in"]))]))
         return out
 
     def bec_campaign(self, k: int) -> list[Email]:
         start = self.campaign_start()
         t: Tenant = self.pick(self.w.tenants)
         ex = t.executives
-        kind = self.pick(["gift_cards", "gift_cards", "wire_lookalike", "payroll", "direct_spoof",
+        kind = self.pick(["gift_cards", "gift_cards", "wire_lookalike", "wire_freemail", "payroll", "direct_spoof",
                           "vendor_invoice", "vendor_invoice", "compromised_vendor"])
         out = []
         for ts in self.spread(start, k, 8):
             free = str(self.pick(sorted(FREEMAIL_DOMAINS)))
             reply_to, atts, thread, auth = None, [], None, AuthResults()
-            if kind in ("gift_cards", "wire_lookalike", "direct_spoof"):
+            if kind in ("gift_cards", "wire_lookalike", "wire_freemail", "direct_spoof"):
                 display = t.names[ex["CEO"]]
                 first, last = display.lower().split(" ", 1)
-                to = self.pick(t.mailboxes[6:]) if kind == "gift_cards" else self.pick([ex["CFO"], ex["Controller"], ex["AP"]])
-                subj, tpl = T.BEC_GIFT_CARDS if kind == "gift_cards" else T.BEC_WIRE
-                if kind == "gift_cards":
-                    sender = f"{first}.{last}.{self.pick(['office', 'ceo', 'exec'])}@{free}"
+                to = self.pick(t.mailboxes[6:]) if kind == "gift_cards" else \
+                    self.pick([ex["CFO"], ex["Controller"], ex["AP"]])
+                subj, tpl = self.pick(T.BEC_GIFT_CARDS if kind == "gift_cards" else T.BEC_WIRE)
+                if kind in ("gift_cards", "wire_freemail"):
+                    sender = f"{first}.{last}.{self.pick(['office', 'ceo', 'exec', 'mobile'])}@{free}"
+                    if self.rng.random() < 0.3:                 # display name variant dodges exact matching
+                        display = f"{display} (CEO)"
                     reply_to = f"{first}{self.rng.integers(10, 99)}@{free}" if self.rng.random() < 0.3 else None
                 elif kind == "wire_lookalike":
                     sender = f"{first}.{last}@{self.w.attacker_domain(t.domain, start)}"
@@ -439,12 +506,13 @@ class Generator:
                 display = t.names[victim]
                 sender = f"{display.lower().replace(' ', '.')}{self.rng.integers(1, 99)}@{free}"
                 to = ex["HR"]
-                subj, tpl = T.BEC_PAYROLL
+                subj, tpl = self.pick(T.BEC_PAYROLL)
             else:
                 v: Contact = self.pick(self.w.vendors[t.tenant_id])
                 display, to = v.name, self.pick([ex["AP"], ex["CFO"], ex["Controller"]])
-                subj, tpl = T.BEC_VENDOR_INVOICE
-                atts = [self.attachment("new_bank_details.pdf")]
+                mimic = kind == "compromised_vendor" and self.rng.random() < 0.5
+                subj, tpl = self.pick(T.LEGIT_VENDOR[:2] if mimic else T.BEC_VENDOR_INVOICE)
+                atts = [self.attachment(self.pick(["new_bank_details.pdf", "bank_details.pdf", "invoice.pdf"]))]
                 if kind == "vendor_invoice":
                     sender = f"{v.addr.split('@')[0]}@{self.w.attacker_domain(v.domain, start)}"
                     reply_to = f"accounts.{v.domain.split('.')[0]}@{free}" if self.rng.random() < 0.4 else None
@@ -468,7 +536,8 @@ class Generator:
             for ts in self.spread(start, min(k, 3), 6):
                 to = self.pick(t.mailboxes)
                 s = self.slots(t, to, c.name)
-                subj, tpl, fname = T.MALWARE_PASSWORD_ZIP
+                subj, tpl, fname = T.MALWARE_PASSWORD_ZIP if self.rng.random() < 0.5 else \
+                    (*T.HN_ENCRYPTED_ZIP, "documents_{inv}.zip")
                 out.append(self.email(t, to, ts, c.addr, c.name, subj.format(**s), self.text(tpl, s), "malware",
                                       "hard_pos:password_zip",
                                       attachments=[self.attachment(fname.format(**s), True, register_p=0.0)],

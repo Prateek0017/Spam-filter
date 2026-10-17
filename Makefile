@@ -4,7 +4,7 @@ CONFIG  ?= configs/default.yaml
 
 .PHONY: setup data train eval demo test all clean
 
-setup:            ## Create Python 3.11 venv and install deps (requires uv)
+setup:            ## Create Python 3.11 venv and install deps (requires uv; macOS also: brew install libomp)
 	uv venv --python 3.11 .venv
 	uv pip install --python $(PY) -r requirements-dev.txt
 

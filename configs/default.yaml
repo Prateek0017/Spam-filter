@@ -35,3 +35,15 @@ cascade:
   sync_deadline_ms: 5000     # provider fail-open deadline
   target_p99_ms: 2000
   gray_zone: [0.30, 0.80]    # Tier 1 scores sent to the intent check (re-tuned in eval)
+
+model:
+  warmup_days: 7             # history-only: senders all look "new" at the start of the stream
+  lgbm:                      # picked on a validation window (last 7 train days), never on test
+    n_estimators: 150
+    learning_rate: 0.05
+    num_leaves: 15
+    min_child_samples: 40
+    reg_lambda: 5.0
+    subsample: 0.8
+    subsample_freq: 1
+    colsample_bytree: 0.8
