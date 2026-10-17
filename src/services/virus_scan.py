@@ -38,8 +38,10 @@ class VirusScanService(MockService):
             if att.sha256 in self.intel.malware_hashes:
                 return ScanVerdict(att.sha256, True, "Mock.Trojan.Generic"), "registry"
             ext = att.filename.rsplit(".", 1)[-1].lower() if "." in att.filename else ""
-            # Unknown file: sandbox detonation catches most macro droppers / executables.
-            if (att.has_macro or ext in RISKY_EXTENSIONS) and stable_uniform("av", key) < 0.85:
+            # Unknown file: sandbox detonation catches most executables / disk images. Unknown macro
+            # documents are only caught by hash (finance teams send legit .xlsm daily), and encrypted
+            # archives can't be opened at all.
+            if ext in RISKY_EXTENSIONS and stable_uniform("av", key) < 0.85:
                 return ScanVerdict(att.sha256, True, "Mock.Heur.Dropper"), "heuristic"
             return ScanVerdict(att.sha256, False, None), "heuristic"
 

@@ -7,6 +7,7 @@ Steps
   3. Walk the whole stream in time order: extract features, then update history.
   4. Text LR: out-of-fold scores on train, full-train fit scores test -> `text_score`.
   5. LightGBM multiclass on the observed (noisy) labels.
+  6. Tier 2 intent model (weakly supervised) on train text.
 
 Usage: python -m src.models.train --config configs/default.yaml
 """
@@ -27,6 +28,7 @@ from src.data.io import load_emails, load_tenants
 from src.data.schema import CATEGORIES
 from src.features.extract import FEATURES, FeatureExtractor, email_text
 from src.models.text import make_lr, make_vectorizer, oof_scores
+from src.pipeline.intent import IntentModel
 from src.rules.engine import RULES, blocks, run_rules
 from src.services import build_services
 
@@ -38,7 +40,7 @@ def split_dates(cfg: dict) -> tuple[datetime, datetime]:
     return start + timedelta(days=cfg["model"]["warmup_days"]), start + timedelta(days=d["days"] - d["test_days"])
 
 
-def build_feature_table(cfg: dict) -> tuple[pd.DataFrame, FeatureExtractor, object]:
+def build_feature_table(cfg: dict) -> tuple[pd.DataFrame, FeatureExtractor, object, list[str]]:
     raw = Path(cfg["paths"]["raw"])
     emails, tenants = load_emails(raw / "emails.jsonl"), load_tenants(raw / "tenants.json")
     _, test_start = split_dates(cfg)
@@ -61,7 +63,7 @@ def build_feature_table(cfg: dict) -> tuple[pd.DataFrame, FeatureExtractor, obje
         fx.update(e, X_text[i])
     df = pd.DataFrame(rows)
     df["split"] = np.where(df["timestamp"] >= test_start, "test", "train")
-    return df, fx, X_text
+    return df, fx, X_text, texts
 
 
 def rule_report(df: pd.DataFrame) -> pd.DataFrame:
@@ -86,7 +88,7 @@ def main() -> None:
     seed_everything(seed)
     train_start, _ = split_dates(cfg)
 
-    df, fx, X_text = build_feature_table(cfg)
+    df, fx, X_text, texts = build_feature_table(cfg)
     tr = (df["split"] == "train").to_numpy()
     fit = tr & (df["timestamp"] >= train_start).to_numpy()
 
@@ -101,11 +103,14 @@ def main() -> None:
     model = LGBMClassifier(objective="multiclass", **cfg["model"]["lgbm"], random_state=seed, verbose=-1)
     model.fit(df.loc[fit, FEATURES], y[fit])
 
+    intent = IntentModel(seed).fit(X_text[tr], [t for t, keep in zip(texts, tr) if keep])
+
     models, processed = Path(cfg["paths"]["models"]), Path(cfg["paths"]["processed"])
     models.mkdir(parents=True, exist_ok=True)
     processed.mkdir(parents=True, exist_ok=True)
     joblib.dump({"vectorizer": fx.vectorizer, "lr": text_lr}, models / "text_model.joblib")
     joblib.dump(model, models / "lgbm.joblib")
+    joblib.dump(intent, models / "intent.joblib")
     joblib.dump(fx, models / "feature_extractor.joblib")     # history as of the end of the stream
     df.to_parquet(processed / "features.parquet", index=False)
 

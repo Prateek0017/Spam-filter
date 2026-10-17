@@ -34,7 +34,10 @@ services:
 cascade:
   sync_deadline_ms: 5000     # provider fail-open deadline
   target_p99_ms: 2000
-  gray_zone: [0.30, 0.80]    # Tier 1 scores sent to the intent check (re-tuned in eval)
+  gray_zone: [0.20, 0.80]    # LightGBM P(malicious) in this band goes to the Tier 2 intent check
+                             # (lower bound picked on the validation window, see DESIGN.md)
+  topic_shift_high: 0.8      # 1 - cosine to the sender's past emails (weak signal: legit median ~0.7)
+  intent_min: 0.5            # intent probability that counts as "asks for"
 
 model:
   warmup_days: 7             # history-only: senders all look "new" at the start of the stream
@@ -47,3 +50,16 @@ model:
     subsample: 0.8
     subsample_freq: 1
     colsample_bytree: 0.8
+
+# Cost model for the $0.30/mailbox/month budget. Volumes and prices are assumptions, stated
+# so they can be challenged; measured compute time and lookup counts come from the eval run.
+cost:
+  budget_per_mailbox_month: 0.30
+  emails_per_mailbox_day: 120          # inbound incl. newsletters/notifications
+  vcpu_hour_usd: 0.04                  # on-demand ARM vCPU
+  cpu_overhead: 3.0                    # MIME parsing, queueing, retries on top of measured compute
+  lookup_cache_hit: 0.90               # IP / WHOIS / URL answers cached for hours
+  lookup_usd: 0.0001                   # per uncached reputation / WHOIS call
+  scan_cache_hit: 0.50                 # attachment hash already scanned (shared across tenants)
+  av_usd: 0.00005                      # self-hosted static AV, every attachment
+  sandbox_usd: 0.002                   # detonation sandbox: risky types on non-quarantined mail only
