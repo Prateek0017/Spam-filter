@@ -38,6 +38,8 @@ cascade:
                              # (lower bound picked on the validation window, see DESIGN.md)
   topic_shift_high: 0.8      # 1 - cosine to the sender's past emails (weak signal: legit median ~0.7)
   intent_min: 0.5            # intent probability that counts as "asks for"
+  established_min_msgs: 3    # Tier 2 never quarantines a sender who exchanged mail with this mailbox
+                             # or sent the company this many earlier emails (banner instead)
 
 model:
   warmup_days: 7             # history-only: senders all look "new" at the start of the stream

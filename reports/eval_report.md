@@ -16,7 +16,7 @@ blank for the cascade rows. Hard negatives in test: 210.
 | Metadata only (no text or subject features) | 96.9% | 92.4% | 94.6% | 0.978 | 71.8% | 26.1% | 10 | 11 |
 | Full model (LightGBM, no subject features) | 100.0% | 96.5% | 98.2% | 0.992 | 88.7% | 43.5% | 0 | 0 |
 | Full model + subject features | 100.0% | 96.2% | 98.1% | 0.993 | 87.3% | 43.5% | 0 | 0 |
-| Full cascade (blocked) | 99.4% | 95.7% | 97.5% | – | 85.9% | 43.5% | 1 | 2 |
+| Full cascade (blocked) | 100.0% | 94.0% | 96.9% | – | 81.7% | 26.1% | 0 | 0 |
 | Full cascade (blocked or banner) | 99.4% | 96.5% | 97.9% | – | 88.7% | 47.8% | 1 | 2 |
 | Full cascade + async virus scan | 99.4% | 96.5% | 97.9% | – | 88.7% | 47.8% | 1 | 2 |
 
@@ -35,22 +35,22 @@ real or freemail account. BEC actions by scenario:
 
 |  | DELIVER | QUARANTINE | WARNING_BANNER |
 |---|---|---|---|
-| bec:direct_spoof | 0 | 8 | 0 |
+| bec:direct_spoof | 0 | 6 | 2 |
 | bec:gift_cards | 1 | 22 | 1 |
 | bec:payroll | 0 | 3 | 0 |
 | bec:vendor_invoice | 0 | 11 | 0 |
 | bec:wire_freemail | 0 | 6 | 0 |
 | bec:wire_lookalike | 0 | 10 | 0 |
-| hard_pos:compromised_vendor | 7 | 1 | 1 |
+| hard_pos:compromised_vendor | 7 | 0 | 2 |
 
 ### Actions per true class
 
 |  | DELIVER | WARNING_BANNER | SPAM_FOLDER | QUARANTINE |
 |---|---|---|---|---|
-| legit | 1516 | 0 | 0 | 2 |
+| legit | 1516 | 2 | 0 | 0 |
 | spam | 0 | 0 | 132 | 0 |
-| phishing | 5 | 1 | 6 | 87 |
-| bec | 8 | 2 | 0 | 61 |
+| phishing | 5 | 4 | 6 | 84 |
+| bec | 8 | 5 | 0 | 58 |
 | malware | 0 | 0 | 0 | 67 |
 
 ![Confusion matrix](confusion_matrix.png)
@@ -60,8 +60,8 @@ real or freemail account. BEC actions by scenario:
 Hard positives are attacks from real, trusted accounts or with copied legit wording; hard negatives
 are legit mail that looks risky. Recall on hard positives (any action but DELIVER):
 **47.8%**. Hard negatives
-blocked: **1**,
-bannered: **0**.
+blocked: **0**,
+bannered: **1**.
 
 |  | n | blocked | banner | delivered |
 |---|---|---|---|---|
@@ -75,9 +75,9 @@ bannered: **0**.
 | hard_neg:promo | 15 | 0 | 0 | 15 |
 | hard_neg:rebrand | 14 | 0 | 0 | 14 |
 | hard_neg:vendor_bank_change | 8 | 0 | 0 | 8 |
-| hard_neg:vendor_payment_request | 27 | 1 | 0 | 26 |
-| hard_pos:compromised_account | 11 | 6 | 0 | 5 |
-| hard_pos:compromised_vendor | 9 | 1 | 1 | 7 |
+| hard_neg:vendor_payment_request | 27 | 0 | 1 | 26 |
+| hard_pos:compromised_account | 11 | 3 | 3 | 5 |
+| hard_pos:compromised_vendor | 9 | 0 | 2 | 7 |
 | hard_pos:password_zip | 3 | 3 | 0 | 0 |
 
 ## What drives the model (SHAP)
@@ -129,12 +129,12 @@ masked before vectorising; bigrams never cross a sentence boundary).
 
 End-to-end synchronous latency per email: measured compute (features, rules, both models, intent
 check) plus the simulated external lookups, which fan out in parallel (so the slowest one counts).
-Mean compute alone: 1.2 ms. Budget: p99 under 2000 ms; provider
+Mean compute alone: 1.6 ms. Budget: p99 under 2000 ms; provider
 deadline 5000 ms.
 
 |  | p50 | p95 | p99 | max |
 |---|---|---|---|---|
-| end-to-end ms | 9.9 | 25.1 | 33.6 | 87.2 |
+| end-to-end ms | 10.3 | 25.2 | 33.6 | 79.6 |
 
 Decided at Tier 0: 2.3%, Tier 1: 97.0%, Tier 2 (gray zone): 0.7%.
 The virus scan runs asynchronously; it pulled 0 delivered emails after the fact: everything it detected had already been quarantined by the synchronous path.
@@ -161,7 +161,7 @@ sandbox ($0.002), and only when the email was not already quarantined. Measured 
 
 |  | base: $/mailbox/month | base: share of budget | stress: $/mailbox/month | stress: share of budget |
 |---|---|---|---|---|
-| Compute (features, rules, models) | 0.0000 | 0.0% | 0.0001 | 0.0% |
+| Compute (features, rules, models) | 0.0000 | 0.0% | 0.0002 | 0.1% |
 | Reputation / WHOIS lookups | 0.0041 | 1.4% | 0.0991 | 33.0% |
 | Static AV scan (every attachment) | 0.0009 | 0.3% | 0.0222 | 7.4% |
 | Sandbox (risky types, not quarantined) | 0.0033 | 1.1% | 0.0782 | 26.1% |

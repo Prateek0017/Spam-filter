@@ -92,10 +92,8 @@ def rule_report(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--config", default=None)
-    cfg = load_config(ap.parse_args().config)
+def run(cfg: dict) -> None:
+    """Train everything for one config (paths and seed come from cfg)."""
     seed = cfg["seed"]
     seed_everything(seed)
     train_start, _ = split_dates(cfg)
@@ -134,6 +132,12 @@ def main() -> None:
     print(f"test macro-F1 (5 classes): {f1_score(te['true_category'], pred, average='macro'):.3f}")
     print("\nTier 0 rules on the training period (precision vs true labels):")
     print(rule_report(df[tr]).to_string(index=False, float_format="%.3f"))
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--config", default=None)
+    run(load_config(ap.parse_args().config))
 
 
 if __name__ == "__main__":

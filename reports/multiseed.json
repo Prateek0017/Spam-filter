@@ -1,0 +1,976 @@
+{
+ "seeds": [
+  42,
+  43,
+  44,
+  45,
+  46
+ ],
+ "runs": {
+  "42": {
+   "ablation": {
+    "Rules only (Tier 0 block)": {
+     "precision": 1.0,
+     "recall": 0.11924119241192412,
+     "f1": 0.21307506053268765,
+     "pr_auc": 0.6172077177744864,
+     "bec_recall": 0.28169014084507044,
+     "hard_pos_recall": 0.0,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Text only (TF-IDF + LR)": {
+     "precision": 0.5694200351493849,
+     "recall": 0.8780487804878049,
+     "f1": 0.6908315565031983,
+     "pr_auc": 0.8857312592232691,
+     "bec_recall": 0.8873239436619719,
+     "hard_pos_recall": 0.9130434782608695,
+     "hard_neg_fp": 73.0,
+     "legit_fp": 245.0
+    },
+    "Metadata only (no text or subject features)": {
+     "precision": 0.96875,
+     "recall": 0.924119241192412,
+     "f1": 0.9459084604715673,
+     "pr_auc": 0.9783267466408793,
+     "bec_recall": 0.7183098591549296,
+     "hard_pos_recall": 0.2608695652173913,
+     "hard_neg_fp": 10.0,
+     "legit_fp": 11.0
+    },
+    "Full model (LightGBM, no subject features)": {
+     "precision": 1.0,
+     "recall": 0.964769647696477,
+     "f1": 0.9820689655172414,
+     "pr_auc": 0.9924971244769853,
+     "bec_recall": 0.8873239436619719,
+     "hard_pos_recall": 0.43478260869565216,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full model + subject features": {
+     "precision": 1.0,
+     "recall": 0.962059620596206,
+     "f1": 0.9806629834254144,
+     "pr_auc": 0.9926178781944168,
+     "bec_recall": 0.8732394366197183,
+     "hard_pos_recall": 0.43478260869565216,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full cascade (blocked)": {
+     "precision": 1.0,
+     "recall": 0.940379403794038,
+     "f1": 0.9692737430167597,
+     "pr_auc": NaN,
+     "bec_recall": 0.8169014084507042,
+     "hard_pos_recall": 0.2608695652173913,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full cascade (blocked or banner)": {
+     "precision": 0.994413407821229,
+     "recall": 0.964769647696477,
+     "f1": 0.9793672627235214,
+     "pr_auc": NaN,
+     "bec_recall": 0.8873239436619719,
+     "hard_pos_recall": 0.4782608695652174,
+     "hard_neg_fp": 1.0,
+     "legit_fp": 2.0
+    },
+    "Full cascade + async virus scan": {
+     "precision": 0.994413407821229,
+     "recall": 0.964769647696477,
+     "f1": 0.9793672627235214,
+     "pr_auc": NaN,
+     "bec_recall": 0.8873239436619719,
+     "hard_pos_recall": 0.4782608695652174,
+     "hard_neg_fp": 1.0,
+     "legit_fp": 2.0
+    }
+   },
+   "per_class": {
+    "legit": {
+     "precision": 0.9914977109221713,
+     "recall": 0.9986824769433466,
+     "f1": 0.995077125041024,
+     "support": 1518,
+     "pr_auc (LightGBM)": 0.9992971986485105
+    },
+    "spam": {
+     "precision": 0.9361702127659575,
+     "recall": 1.0,
+     "f1": 0.967032967032967,
+     "support": 132,
+     "pr_auc (LightGBM)": 1.0
+    },
+    "phishing": {
+     "precision": 0.9883720930232558,
+     "recall": 0.8585858585858586,
+     "f1": 0.918918918918919,
+     "support": 99,
+     "pr_auc (LightGBM)": 0.9671018068412297
+    },
+    "bec": {
+     "precision": 0.984375,
+     "recall": 0.8873239436619719,
+     "f1": 0.9333333333333333,
+     "support": 71,
+     "pr_auc (LightGBM)": 0.9791365062194981
+    },
+    "malware": {
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0,
+     "support": 67,
+     "pr_auc (LightGBM)": 1.0000000000000002
+    }
+   },
+   "latency_ms": {
+    "p50": 9.894247037781914,
+    "p95": 25.010158508589058,
+    "p99": 33.51296647543856,
+    "max": 46.2642740553138
+   },
+   "tier_share": {
+    "0": 0.023317435082140965,
+    "1": 0.9697933227344993,
+    "2": 0.00688924218335983
+   },
+   "cost_per_mailbox_month": {
+    "base": 0.008316098438053938,
+    "stress": 0.19958636251329454
+   },
+   "tier2_headroom": {
+    "usd_per_mailbox_month": 0.29168390156194607,
+    "usd_per_gray_zone_email": 0.2822602678191755
+   },
+   "shap_top": {
+    "text_score": 1.497263869786817,
+    "sender_domain_age_days": 1.0449086706984527,
+    "min_url_domain_age_days": 0.8591964102848935,
+    "payment_kw": 0.8538631236488937,
+    "topic_shift": 0.661915645294311,
+    "risky_attachments": 0.6435209290269592,
+    "subject_body_sim": 0.574552183782586,
+    "lookalike_score": 0.5441889961147367,
+    "subject_caps_ratio": 0.5102425862580146,
+    "ip_score": 0.4992249448999202,
+    "url_bad_verdict": 0.39135487916812256,
+    "prior_exchanges": 0.30109316927742646,
+    "sender_prior_msgs": 0.22147748367328873,
+    "domain_volume_24h": 0.21924834833180856,
+    "offdomain_urls": 0.18222173421198137
+   },
+   "text_terms": {
+    "toward attack": [
+     "here (+2.28)",
+     "purchase (+2.08)",
+     "here url (+2.02)",
+     "url (+2.01)",
+     "book (+1.94)",
+     "on my (+1.94)",
+     "book time (+1.94)",
+     "last (+1.94)",
+     "my last (+1.94)",
+     "last email (+1.94)",
+     "time here (+1.94)",
+     "url please (+1.91)",
+     "your (+1.84)",
+     "document (+1.84)",
+     "purchase order (+1.81)"
+    ],
+    "toward legit": [
+     "through it (-2.25)",
+     "it on (-2.25)",
+     "walk through (-2.25)",
+     "to walk (-2.25)",
+     "available (-2.24)",
+     "payment (-2.19)",
+     "unchanged (-2.18)",
+     "are unchanged (-2.18)",
+     "from (-2.17)",
+     "are (-2.11)",
+     "on the (-2.08)",
+     "introduction (-2.06)",
+     "out from (-2.06)",
+     "our capabilities (-2.06)",
+     "capabilities (-2.06)"
+    ]
+   }
+  },
+  "43": {
+   "ablation": {
+    "Rules only (Tier 0 block)": {
+     "precision": 1.0,
+     "recall": 0.11421319796954314,
+     "f1": 0.20501138952164008,
+     "pr_auc": 0.6129052585007964,
+     "bec_recall": 0.265625,
+     "hard_pos_recall": 0.0,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Text only (TF-IDF + LR)": {
+     "precision": 0.5733113673805601,
+     "recall": 0.883248730964467,
+     "f1": 0.6953046953046953,
+     "pr_auc": 0.8945840546162158,
+     "bec_recall": 0.859375,
+     "hard_pos_recall": 0.7857142857142857,
+     "hard_neg_fp": 82.0,
+     "legit_fp": 259.0
+    },
+    "Metadata only (no text or subject features)": {
+     "precision": 0.9706666666666667,
+     "recall": 0.9238578680203046,
+     "f1": 0.9466840052015605,
+     "pr_auc": 0.9805973597192819,
+     "bec_recall": 0.671875,
+     "hard_pos_recall": 0.25,
+     "hard_neg_fp": 11.0,
+     "legit_fp": 11.0
+    },
+    "Full model (LightGBM, no subject features)": {
+     "precision": 1.0,
+     "recall": 0.9593908629441624,
+     "f1": 0.9792746113989638,
+     "pr_auc": 0.9962456304916513,
+     "bec_recall": 0.859375,
+     "hard_pos_recall": 0.42857142857142855,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full model + subject features": {
+     "precision": 1.0,
+     "recall": 0.9568527918781726,
+     "f1": 0.9779507133592736,
+     "pr_auc": 0.9969735233642344,
+     "bec_recall": 0.828125,
+     "hard_pos_recall": 0.42857142857142855,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full cascade (blocked)": {
+     "precision": 1.0,
+     "recall": 0.9441624365482234,
+     "f1": 0.9712793733681462,
+     "pr_auc": NaN,
+     "bec_recall": 0.8125,
+     "hard_pos_recall": 0.2857142857142857,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full cascade (blocked or banner)": {
+     "precision": 0.9947916666666666,
+     "recall": 0.9695431472081218,
+     "f1": 0.9820051413881749,
+     "pr_auc": NaN,
+     "bec_recall": 0.890625,
+     "hard_pos_recall": 0.5714285714285714,
+     "hard_neg_fp": 2.0,
+     "legit_fp": 2.0
+    },
+    "Full cascade + async virus scan": {
+     "precision": 0.9947916666666666,
+     "recall": 0.9695431472081218,
+     "f1": 0.9820051413881749,
+     "pr_auc": NaN,
+     "bec_recall": 0.890625,
+     "hard_pos_recall": 0.5714285714285714,
+     "hard_neg_fp": 2.0,
+     "legit_fp": 2.0
+    }
+   },
+   "per_class": {
+    "legit": {
+     "precision": 0.9927797833935018,
+     "recall": 0.9987893462469734,
+     "f1": 0.995775497887749,
+     "support": 1652,
+     "pr_auc (LightGBM)": 0.9996932453909462
+    },
+    "spam": {
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0,
+     "support": 152,
+     "pr_auc (LightGBM)": 1.0
+    },
+    "phishing": {
+     "precision": 1.0,
+     "recall": 0.9741379310344828,
+     "f1": 0.9868995633187773,
+     "support": 116,
+     "pr_auc (LightGBM)": 0.9995635016133863
+    },
+    "bec": {
+     "precision": 0.9661016949152542,
+     "recall": 0.890625,
+     "f1": 0.926829268292683,
+     "support": 64,
+     "pr_auc (LightGBM)": 0.9787415196725078
+    },
+    "malware": {
+     "precision": 1.0,
+     "recall": 0.967741935483871,
+     "f1": 0.9836065573770492,
+     "support": 62,
+     "pr_auc (LightGBM)": 0.997384481255449
+    }
+   },
+   "latency_ms": {
+    "p50": 9.788032792438864,
+    "p95": 21.514561695568503,
+    "p99": 32.571966950699775,
+    "max": 55.837896181820284
+   },
+   "tier_share": {
+    "0": 0.021994134897360705,
+    "1": 0.9711632453567938,
+    "2": 0.006842619745845552
+   },
+   "cost_per_mailbox_month": {
+    "base": 0.008901100649623184,
+    "stress": 0.21362641559095638
+   },
+   "tier2_headroom": {
+    "usd_per_mailbox_month": 0.2910988993503768,
+    "usd_per_gray_zone_email": 0.2836134990813671
+   },
+   "shap_top": {
+    "text_score": 1.5106146764781467,
+    "sender_domain_age_days": 0.873255920627312,
+    "payment_kw": 0.8333815455671523,
+    "lookalike_score": 0.7982982705405439,
+    "min_url_domain_age_days": 0.7825541562787443,
+    "risky_attachments": 0.6446606123807861,
+    "subject_body_sim": 0.6321541357844251,
+    "topic_shift": 0.6053777834296471,
+    "subject_caps_ratio": 0.4487811119088462,
+    "ip_score": 0.4427374041854827,
+    "prior_exchanges": 0.4143125733885823,
+    "sender_prior_msgs": 0.3912387952301363,
+    "domain_volume_24h": 0.2563319824246649,
+    "url_bad_verdict": 0.24856153509756387,
+    "n_urls": 0.22718121851014367
+   },
+   "text_terms": {
+    "toward attack": [
+     "here url (+2.11)",
+     "account (+2.07)",
+     "on my (+2.07)",
+     "time here (+2.07)",
+     "my last (+2.07)",
+     "book time (+2.07)",
+     "book (+2.07)",
+     "last email (+2.07)",
+     "last (+2.07)",
+     "document (+2.03)",
+     "purchase (+1.90)",
+     "budget review (+1.88)",
+     "authentication today (+1.81)",
+     "here (+1.80)",
+     "url (+1.79)"
+    ],
+    "toward legit": [
+     "regards (-3.12)",
+     "payment details (-2.79)",
+     "unchanged (-2.76)",
+     "are unchanged (-2.76)",
+     "through it (-2.76)",
+     "walk through (-2.76)",
+     "to walk (-2.76)",
+     "it on (-2.76)",
+     "payment (-2.66)",
+     "from (-2.55)",
+     "are (-2.44)",
+     "details are (-2.38)",
+     "tuesday (-2.29)",
+     "hello (-2.22)",
+     "on the (-2.21)"
+    ]
+   }
+  },
+  "44": {
+   "ablation": {
+    "Rules only (Tier 0 block)": {
+     "precision": 0.9767441860465116,
+     "recall": 0.10966057441253264,
+     "f1": 0.19718309859154928,
+     "pr_auc": 0.6234546986590606,
+     "bec_recall": 0.25333333333333335,
+     "hard_pos_recall": 0.0,
+     "hard_neg_fp": 1.0,
+     "legit_fp": 1.0
+    },
+    "Text only (TF-IDF + LR)": {
+     "precision": 0.5792988313856428,
+     "recall": 0.9060052219321149,
+     "f1": 0.7067209775967414,
+     "pr_auc": 0.8980385296823206,
+     "bec_recall": 0.8133333333333334,
+     "hard_pos_recall": 0.6363636363636364,
+     "hard_neg_fp": 74.0,
+     "legit_fp": 252.0
+    },
+    "Metadata only (no text or subject features)": {
+     "precision": 0.9692737430167597,
+     "recall": 0.9060052219321149,
+     "f1": 0.9365721997300944,
+     "pr_auc": 0.9879622314423152,
+     "bec_recall": 0.72,
+     "hard_pos_recall": 0.2727272727272727,
+     "hard_neg_fp": 11.0,
+     "legit_fp": 11.0
+    },
+    "Full model (LightGBM, no subject features)": {
+     "precision": 1.0,
+     "recall": 0.9634464751958225,
+     "f1": 0.9813829787234043,
+     "pr_auc": 0.9944904538038551,
+     "bec_recall": 0.9333333333333333,
+     "hard_pos_recall": 0.45454545454545453,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full model + subject features": {
+     "precision": 1.0,
+     "recall": 0.9660574412532638,
+     "f1": 0.9827357237715804,
+     "pr_auc": 0.9941629167256932,
+     "bec_recall": 0.9333333333333333,
+     "hard_pos_recall": 0.45454545454545453,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full cascade (blocked)": {
+     "precision": 0.9972527472527473,
+     "recall": 0.9477806788511749,
+     "f1": 0.9718875502008032,
+     "pr_auc": NaN,
+     "bec_recall": 0.88,
+     "hard_pos_recall": 0.45454545454545453,
+     "hard_neg_fp": 1.0,
+     "legit_fp": 1.0
+    },
+    "Full cascade (blocked or banner)": {
+     "precision": 0.9892183288409704,
+     "recall": 0.95822454308094,
+     "f1": 0.9734748010610079,
+     "pr_auc": NaN,
+     "bec_recall": 0.9333333333333333,
+     "hard_pos_recall": 0.45454545454545453,
+     "hard_neg_fp": 4.0,
+     "legit_fp": 4.0
+    },
+    "Full cascade + async virus scan": {
+     "precision": 0.989247311827957,
+     "recall": 0.9608355091383812,
+     "f1": 0.9748344370860927,
+     "pr_auc": NaN,
+     "bec_recall": 0.9333333333333333,
+     "hard_pos_recall": 0.45454545454545453,
+     "hard_neg_fp": 4.0,
+     "legit_fp": 4.0
+    }
+   },
+   "per_class": {
+    "legit": {
+     "precision": 0.9904640813731723,
+     "recall": 0.9974391805377721,
+     "f1": 0.9939393939393939,
+     "support": 1562,
+     "pr_auc (LightGBM)": 0.9987957044664093
+    },
+    "spam": {
+     "precision": 0.9925925925925926,
+     "recall": 0.9852941176470589,
+     "f1": 0.988929889298893,
+     "support": 136,
+     "pr_auc (LightGBM)": 1.0
+    },
+    "phishing": {
+     "precision": 1.0,
+     "recall": 0.9803921568627451,
+     "f1": 0.9900990099009901,
+     "support": 102,
+     "pr_auc (LightGBM)": 0.9999999999999999
+    },
+    "bec": {
+     "precision": 0.9722222222222222,
+     "recall": 0.9333333333333333,
+     "f1": 0.9523809523809523,
+     "support": 75,
+     "pr_auc (LightGBM)": 0.9786207304933777
+    },
+    "malware": {
+     "precision": 0.9846153846153847,
+     "recall": 0.9142857142857143,
+     "f1": 0.9481481481481482,
+     "support": 70,
+     "pr_auc (LightGBM)": 0.9947907223530692
+    }
+   },
+   "latency_ms": {
+    "p50": 9.70030867835415,
+    "p95": 20.086427461312084,
+    "p99": 27.16272255368304,
+    "max": 59.3740594924271
+   },
+   "tier_share": {
+    "0": 0.02210796915167095,
+    "1": 0.9727506426735218,
+    "2": 0.005141388174807198
+   },
+   "cost_per_mailbox_month": {
+    "base": 0.008271590381700264,
+    "stress": 0.19851816916080633
+   },
+   "tier2_headroom": {
+    "usd_per_mailbox_month": 0.2917284096182997,
+    "usd_per_gray_zone_email": 0.37827450447172867
+   },
+   "shap_top": {
+    "text_score": 1.5972765643450173,
+    "sender_domain_age_days": 0.9539610272769264,
+    "payment_kw": 0.8823729416084551,
+    "min_url_domain_age_days": 0.828276341580181,
+    "risky_attachments": 0.6274352630955052,
+    "subject_body_sim": 0.5536538682585336,
+    "topic_shift": 0.5177654954303148,
+    "lookalike_score": 0.48876501123367494,
+    "sender_prior_msgs": 0.47448832579651,
+    "ip_score": 0.38909805604394765,
+    "subject_caps_ratio": 0.3523080569960988,
+    "offdomain_urls": 0.2737493467557401,
+    "prior_exchanges": 0.2645067714242376,
+    "n_urls": 0.22895268454135517,
+    "is_freemail": 0.2079065133284885
+   },
+   "text_terms": {
+    "toward attack": [
+     "budget review (+2.41)",
+     "account (+2.25)",
+     "here url (+2.24)",
+     "document (+2.15)",
+     "purchase (+2.04)",
+     "on my (+1.94)",
+     "last email (+1.94)",
+     "my last (+1.94)",
+     "book time (+1.94)",
+     "book (+1.94)",
+     "last (+1.94)",
+     "time here (+1.94)",
+     "purchase order (+1.82)",
+     "for steel (+1.69)",
+     "is overdue (+1.63)"
+    ],
+    "toward legit": [
+     "thursday (-3.04)",
+     "best (-2.87)",
+     "hi (-2.78)",
+     "cheers (-2.74)",
+     "available (-2.69)",
+     "from (-2.30)",
+     "on the (-2.15)",
+     "tuesday (-2.13)",
+     "hello (-2.00)",
+     "on (-1.98)",
+     "it on (-1.94)",
+     "to walk (-1.94)",
+     "through it (-1.94)",
+     "walk through (-1.94)",
+     "out from (-1.93)"
+    ]
+   }
+  },
+  "45": {
+   "ablation": {
+    "Rules only (Tier 0 block)": {
+     "precision": 0.9807692307692307,
+     "recall": 0.13709677419354838,
+     "f1": 0.24056603773584906,
+     "pr_auc": 0.5683399239351654,
+     "bec_recall": 0.35384615384615387,
+     "hard_pos_recall": 0.0,
+     "hard_neg_fp": 1.0,
+     "legit_fp": 1.0
+    },
+    "Text only (TF-IDF + LR)": {
+     "precision": 0.5293185419968305,
+     "recall": 0.8978494623655914,
+     "f1": 0.6660019940179461,
+     "pr_auc": 0.865081391977011,
+     "bec_recall": 0.8461538461538461,
+     "hard_pos_recall": 0.8125,
+     "hard_neg_fp": 90.0,
+     "legit_fp": 297.0
+    },
+    "Metadata only (no text or subject features)": {
+     "precision": 0.9508196721311475,
+     "recall": 0.9354838709677419,
+     "f1": 0.943089430894309,
+     "pr_auc": 0.9879228245701368,
+     "bec_recall": 0.8615384615384616,
+     "hard_pos_recall": 0.4375,
+     "hard_neg_fp": 18.0,
+     "legit_fp": 18.0
+    },
+    "Full model (LightGBM, no subject features)": {
+     "precision": 0.9943977591036415,
+     "recall": 0.9543010752688172,
+     "f1": 0.9739368998628258,
+     "pr_auc": 0.9974184509417445,
+     "bec_recall": 0.9230769230769231,
+     "hard_pos_recall": 0.53125,
+     "hard_neg_fp": 2.0,
+     "legit_fp": 2.0
+    },
+    "Full model + subject features": {
+     "precision": 1.0,
+     "recall": 0.956989247311828,
+     "f1": 0.978021978021978,
+     "pr_auc": 0.9978227649847798,
+     "bec_recall": 0.9384615384615385,
+     "hard_pos_recall": 0.53125,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full cascade (blocked)": {
+     "precision": 0.997093023255814,
+     "recall": 0.9220430107526881,
+     "f1": 0.9581005586592178,
+     "pr_auc": NaN,
+     "bec_recall": 0.8769230769230769,
+     "hard_pos_recall": 0.40625,
+     "hard_neg_fp": 1.0,
+     "legit_fp": 1.0
+    },
+    "Full cascade (blocked or banner)": {
+     "precision": 0.9888579387186629,
+     "recall": 0.9543010752688172,
+     "f1": 0.9712722298221614,
+     "pr_auc": NaN,
+     "bec_recall": 0.9384615384615385,
+     "hard_pos_recall": 0.59375,
+     "hard_neg_fp": 4.0,
+     "legit_fp": 4.0
+    },
+    "Full cascade + async virus scan": {
+     "precision": 0.9888579387186629,
+     "recall": 0.9543010752688172,
+     "f1": 0.9712722298221614,
+     "pr_auc": NaN,
+     "bec_recall": 0.9384615384615385,
+     "hard_pos_recall": 0.59375,
+     "hard_neg_fp": 4.0,
+     "legit_fp": 4.0
+    }
+   },
+   "per_class": {
+    "legit": {
+     "precision": 0.9893617021276596,
+     "recall": 0.9974763406940063,
+     "f1": 0.9934024505183789,
+     "support": 1585,
+     "pr_auc (LightGBM)": 0.9998666798313349
+    },
+    "spam": {
+     "precision": 0.9923664122137404,
+     "recall": 1.0,
+     "f1": 0.9961685823754789,
+     "support": 130,
+     "pr_auc (LightGBM)": 0.9999999999999999
+    },
+    "phishing": {
+     "precision": 1.0,
+     "recall": 0.8899082568807339,
+     "f1": 0.941747572815534,
+     "support": 109,
+     "pr_auc (LightGBM)": 0.996244719674277
+    },
+    "bec": {
+     "precision": 1.0,
+     "recall": 0.9384615384615385,
+     "f1": 0.9682539682539683,
+     "support": 65,
+     "pr_auc (LightGBM)": 0.9956659999668249
+    },
+    "malware": {
+     "precision": 0.9571428571428572,
+     "recall": 0.9852941176470589,
+     "f1": 0.9710144927536232,
+     "support": 68,
+     "pr_auc (LightGBM)": 0.9967090237629578
+    }
+   },
+   "latency_ms": {
+    "p50": 9.34953172975165,
+    "p95": 20.032802163579433,
+    "p99": 29.44545020747108,
+    "max": 63.9525868326196
+   },
+   "tier_share": {
+    "0": 0.026571282575370465,
+    "1": 0.9626980071538068,
+    "2": 0.010730710270822688
+   },
+   "cost_per_mailbox_month": {
+    "base": 0.008299123714342186,
+    "stress": 0.1991789691442125
+   },
+   "tier2_headroom": {
+    "usd_per_mailbox_month": 0.29170087628565783,
+    "usd_per_gray_zone_email": 0.18122495710826422
+   },
+   "shap_top": {
+    "text_score": 1.6511910123360658,
+    "sender_domain_age_days": 0.8860207806088651,
+    "min_url_domain_age_days": 0.7866440740211312,
+    "payment_kw": 0.6916925052833651,
+    "risky_attachments": 0.6596828886346467,
+    "lookalike_score": 0.6479088536051536,
+    "topic_shift": 0.488606771899382,
+    "subject_caps_ratio": 0.4818607469635494,
+    "subject_body_sim": 0.47386282474226915,
+    "sender_prior_msgs": 0.4398876871727618,
+    "ip_score": 0.433918260022423,
+    "n_urls": 0.3608302696061706,
+    "prior_exchanges": 0.3032829089808128,
+    "domain_volume_24h": 0.23231718358572143,
+    "is_freemail": 0.16325633990285232
+   },
+   "text_terms": {
+    "toward attack": [
+     "authentication today (+2.73)",
+     "here url (+2.18)",
+     "url (+1.89)",
+     "here (+1.88)",
+     "61 (+1.87)",
+     "document (+1.87)",
+     "book (+1.83)",
+     "last (+1.83)",
+     "last email (+1.83)",
+     "on my (+1.83)",
+     "my last (+1.83)",
+     "time here (+1.83)",
+     "book time (+1.83)",
+     "purchase (+1.79)",
+     "day (+1.76)"
+    ],
+    "toward legit": [
+     "payment (-2.59)",
+     "authentication by (-2.58)",
+     "the (-2.19)",
+     "wednesday (-2.15)",
+     "hi (-2.12)",
+     "thursday (-2.08)",
+     "are (-2.05)",
+     "unchanged (-2.03)",
+     "are unchanged (-2.03)",
+     "on the (-2.01)",
+     "from (-1.98)",
+     "details are (-1.92)",
+     "available (-1.90)",
+     "delivery (-1.88)",
+     "payment details (-1.87)"
+    ]
+   }
+  },
+  "46": {
+   "ablation": {
+    "Rules only (Tier 0 block)": {
+     "precision": 1.0,
+     "recall": 0.10579345088161209,
+     "f1": 0.19134396355353075,
+     "pr_auc": 0.6023490350073519,
+     "bec_recall": 0.2328767123287671,
+     "hard_pos_recall": 0.0,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Text only (TF-IDF + LR)": {
+     "precision": 0.5803571428571429,
+     "recall": 0.818639798488665,
+     "f1": 0.6792058516196448,
+     "pr_auc": 0.8550096496378207,
+     "bec_recall": 0.958904109589041,
+     "hard_pos_recall": 0.6470588235294118,
+     "hard_neg_fp": 71.0,
+     "legit_fp": 235.0
+    },
+    "Metadata only (no text or subject features)": {
+     "precision": 0.9393139841688655,
+     "recall": 0.8967254408060453,
+     "f1": 0.9175257731958762,
+     "pr_auc": 0.9712875057762511,
+     "bec_recall": 0.684931506849315,
+     "hard_pos_recall": 0.08823529411764706,
+     "hard_neg_fp": 23.0,
+     "legit_fp": 23.0
+    },
+    "Full model (LightGBM, no subject features)": {
+     "precision": 1.0,
+     "recall": 0.9319899244332494,
+     "f1": 0.9647979139504563,
+     "pr_auc": 0.9878217575237344,
+     "bec_recall": 0.821917808219178,
+     "hard_pos_recall": 0.29411764705882354,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full model + subject features": {
+     "precision": 1.0,
+     "recall": 0.9370277078085643,
+     "f1": 0.9674902470741222,
+     "pr_auc": 0.9881803559005357,
+     "bec_recall": 0.8356164383561644,
+     "hard_pos_recall": 0.3235294117647059,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full cascade (blocked)": {
+     "precision": 1.0,
+     "recall": 0.9219143576826196,
+     "f1": 0.9593709043250328,
+     "pr_auc": NaN,
+     "bec_recall": 0.7945205479452054,
+     "hard_pos_recall": 0.20588235294117646,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full cascade (blocked or banner)": {
+     "precision": 1.0,
+     "recall": 0.9445843828715366,
+     "f1": 0.9715025906735751,
+     "pr_auc": NaN,
+     "bec_recall": 0.8493150684931506,
+     "hard_pos_recall": 0.4117647058823529,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    },
+    "Full cascade + async virus scan": {
+     "precision": 1.0,
+     "recall": 0.9445843828715366,
+     "f1": 0.9715025906735751,
+     "pr_auc": NaN,
+     "bec_recall": 0.8493150684931506,
+     "hard_pos_recall": 0.4117647058823529,
+     "hard_neg_fp": 0.0,
+     "legit_fp": 0.0
+    }
+   },
+   "per_class": {
+    "legit": {
+     "precision": 0.9866098600121729,
+     "recall": 1.0,
+     "f1": 0.9932598039215687,
+     "support": 1621,
+     "pr_auc (LightGBM)": 0.9986356796651892
+    },
+    "spam": {
+     "precision": 0.9930555555555556,
+     "recall": 1.0,
+     "f1": 0.9965156794425087,
+     "support": 143,
+     "pr_auc (LightGBM)": 1.0
+    },
+    "phishing": {
+     "precision": 1.0,
+     "recall": 0.9166666666666666,
+     "f1": 0.9565217391304348,
+     "support": 108,
+     "pr_auc (LightGBM)": 0.9822046673338308
+    },
+    "bec": {
+     "precision": 1.0,
+     "recall": 0.8493150684931506,
+     "f1": 0.9185185185185185,
+     "support": 73,
+     "pr_auc (LightGBM)": 0.9748345166154134
+    },
+    "malware": {
+     "precision": 1.0,
+     "recall": 0.958904109589041,
+     "f1": 0.9790209790209791,
+     "support": 73,
+     "pr_auc (LightGBM)": 0.9990890313529104
+    }
+   },
+   "latency_ms": {
+    "p50": 9.341371192142702,
+    "p95": 20.1151965918978,
+    "p99": 27.625470860252648,
+    "max": 37.94340040126424
+   },
+   "tier_share": {
+    "0": 0.02081268582755203,
+    "1": 0.9747274529236868,
+    "2": 0.0044598612487611496
+   },
+   "cost_per_mailbox_month": {
+    "base": 0.009262788677323488,
+    "stress": 0.2223069282557637
+   },
+   "tier2_headroom": {
+    "usd_per_mailbox_month": 0.2907372113226765,
+    "usd_per_gray_zone_email": 0.43459829070308237
+   },
+   "shap_top": {
+    "text_score": 1.5306459566307833,
+    "sender_domain_age_days": 1.164026597390028,
+    "min_url_domain_age_days": 0.8417999947295944,
+    "payment_kw": 0.7719464854183994,
+    "lookalike_score": 0.598182591776258,
+    "subject_body_sim": 0.5811801817651925,
+    "risky_attachments": 0.5615536199740974,
+    "sender_prior_msgs": 0.5023447224569954,
+    "subject_caps_ratio": 0.5009597678786204,
+    "topic_shift": 0.4987056368791951,
+    "ip_score": 0.4916942757251504,
+    "url_bad_verdict": 0.3488595757536762,
+    "n_urls": 0.24255723770714174,
+    "is_freemail": 0.2246134902881271,
+    "prior_exchanges": 0.20265252152819094
+   },
+   "text_terms": {
+    "toward attack": [
+     "document (+2.23)",
+     "budget review (+2.17)",
+     "26 (+2.07)",
+     "43 (+2.04)",
+     "account (+2.00)",
+     "purchase (+1.77)",
+     "scanned (+1.73)",
+     "scanned document (+1.73)",
+     "here (+1.73)",
+     "94 (+1.71)",
+     "book time (+1.71)",
+     "last (+1.71)",
+     "last email (+1.71)",
+     "my last (+1.71)",
+     "time here (+1.71)"
+    ],
+    "toward legit": [
+     "available (-2.52)",
+     "from (-2.30)",
+     "on the (-2.19)",
+     "unchanged (-2.14)",
+     "are unchanged (-2.14)",
+     "to walk (-2.14)",
+     "it on (-2.14)",
+     "walk through (-2.14)",
+     "through it (-2.14)",
+     "payment (-2.09)",
+     "regards (-2.05)",
+     "are (-2.04)",
+     "on (-2.00)",
+     "wednesday (-1.98)",
+     "hi (-1.96)"
+    ]
+   }
+  }
+ }
+}

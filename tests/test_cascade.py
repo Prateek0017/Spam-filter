@@ -61,7 +61,7 @@ def internal_email(world, **kw) -> Email:
     t = tenants[0]
     sender = Counter(e.from_addr for e in emails if e.from_addr in t.names).most_common(1)[0][0]
     last = [e for e in emails if e.from_addr == sender][-1]        # same style -> no topic shift
-    return Email(message_id="<t@x>", tenant_id=t.tenant_id, to_addr=t.mailboxes[11],
+    return Email(message_id="<t@x>", tenant_id=t.tenant_id, to_addr=last.to_addr,   # an existing exchange
                  timestamp=datetime(2026, 8, 1, 10), from_addr=sender, from_display=t.names[sender],
                  subject=last.subject, body=last.body, **kw)
 
@@ -84,6 +84,10 @@ def test_gray_zone_intent_check(world) -> None:
     # Same colleague asks for a payment -> banner (asks, but the relationship looks normal).
     v = make_cascade(world, gray, payment=0.9).classify(internal_email(world))
     assert v.action == Action.WARNING_BANNER and "ASKS_PAYMENT" in v.reasons
+    # Established colleague asks for payment AND something is off (reply-to elsewhere) -> banner, never quarantine.
+    odd = internal_email(world).model_copy(update={"reply_to": "billing@elsewhere-pay.com"})
+    v = make_cascade(world, gray, payment=0.9).classify(odd)
+    assert v.action == Action.WARNING_BANNER and {"ASKS_PAYMENT", "ESTABLISHED_SENDER"} <= set(v.reasons)
     # Payment request from a first-time freemail sender -> quarantine.
     stranger = internal_email(world).model_copy(update={"from_addr": "ceo.office.1234@gmail.com"})
     v = make_cascade(world, gray, payment=0.9).classify(stranger)

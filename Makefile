@@ -2,7 +2,7 @@
 PY      ?= .venv/bin/python
 CONFIG  ?= configs/default.yaml
 
-.PHONY: setup data train eval demo test all clean
+.PHONY: setup data train eval multiseed demo test all clean
 
 setup:            ## Create Python 3.11 venv and install deps (requires uv; macOS also: brew install libomp)
 	uv venv --python 3.11 .venv
@@ -16,6 +16,9 @@ train:            ## Build point-in-time features, train text model + LightGBM
 
 eval:             ## Metrics, SHAP, ablation, latency + cost reports -> reports/
 	$(PY) -m src.eval.report --config $(CONFIG)
+
+multiseed:        ## Whole pipeline over 5 seeds -> reports/multiseed.md (mean ± std, ~3 minutes)
+	$(PY) -m src.eval.multiseed --config $(CONFIG)
 
 demo:             ## Streamlit demo on :8501
 	$(PY) -m streamlit run demo/streamlit_app.py

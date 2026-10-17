@@ -36,7 +36,7 @@ EXAMPLES = [
     ("Real CFO asks for an urgent wire (legit)", lambda e: e.scenario == "hard_neg:exec_urgent_payment",
      lambda v: v.action == Action.DELIVER),
     ("Lookalike-domain credential phish (Tier 0)", lambda e: e.scenario in ("phishing:brand", "phishing:tenant_it"),
-     lambda v: v.tier == 0),
+     lambda v: v.tier == 0 and v.category == "phishing"),
     ("CEO gift-card request from a freemail account", lambda e: e.scenario == "bec:gift_cards",
      lambda v: v.action == Action.QUARANTINE),
     ("Gray zone: decided by the intent check (Tier 2)", lambda e: e.true_category != "legit",
@@ -54,6 +54,7 @@ REASONS = {r.code: r.description for r in RULES} | {
     "NEW_SENDER": "First email from this sender to this company",
     "TOPIC_SHIFT": "Very different from what this sender usually writes",
     "FREEMAIL_SENDER": "New sender on a free webmail domain",
+    "ESTABLISHED_SENDER": "Known correspondent: warned with a banner instead of quarantined",
     "VIRUS_DETECTED": "Attachment scan found malware; email pulled from the mailbox",
 }
 ACTION_STYLE = {Action.DELIVER: ("success", "Delivered"), Action.WARNING_BANNER: ("warning", "Delivered with a warning banner"),

@@ -1,6 +1,8 @@
 # Design notes
 
-The trade-offs behind bec-guard, in the order they matter. Numbers are from `make eval` unless noted.
+The trade-offs behind bec-guard, in the order they matter. Headline numbers are mean ± std over 5
+seeds (`make multiseed`: each seed regenerates the data and retrains); single-run numbers are seed 42
+(`make eval`) and say so.
 
 ## 1. A cascade, not one big model
 
@@ -9,12 +11,12 @@ mailbox per day, and only $0.00008 per email in a 120/day stress test. The provi
 A cascade spends money only where it is needed: rules and a small LightGBM decide ~99% of mail in
 ~10 ms, and only the gray zone (1%) gets the extra intent check. The same structure is what would make
 an embedding model or an LLM affordable later: plug it into Tier 2 and it sees 1% of traffic, not 100%.
-At the base volume the whole pipeline costs $0.008/mailbox/month (2.8% of budget), which leaves
-~$0.28 to spend per gray-zone email.
+At the base volume the whole pipeline costs $0.0086 ± 0.0005/mailbox/month (~3% of budget); in seed
+42 that leaves ~$0.28 to spend per gray-zone email.
 
-Cost of the choice: three places to tune instead of one, and Tier 2 currently adds little (one more
-hard positive and one more BEC for two flagged legit emails) because Tier 1 is already confident on
-this data.
+Cost of the choice: three places to tune instead of one, and Tier 2 currently adds little over
+LightGBM alone (+1.8 points BEC recall, +6.7 points hard-positive recall, for ~2.4 legit banners per
+run) because Tier 1 is already confident on this data.
 
 ## 2. Rules explain; they rarely decide
 
@@ -54,12 +56,13 @@ model's top terms rather than its metrics:
   prefix is now judged only by the history-based `fake_reply` feature.
 
 TF-IDF is fast, free and explainable, but matches words, not meaning; plain-wording attacks are left
-to the metadata features (text-only PR-AUC 0.886 vs 0.993 for the full model).
+to the metadata features (text-only PR-AUC 0.880 ± 0.019 vs 0.994 ± 0.004 for the full model).
 
 ## 4b. Subject-line features
 
 Six subject features (fake reply, subject–body similarity, subject keywords, capitals, "!", emojis)
-went in as model features only. On this data they are roughly neutral (PR-AUC 0.992 → 0.993). The
+went in as model features only. On this data they are neutral (PR-AUC 0.994 ± 0.004 with or without,
+hard-positive recall 42.9 → 43.5%, well inside the noise). The
 interesting one, `fake_reply`, is redundant here because every fake reply comes from a new attacker
 address that `first_time_sender` already catches; its value is against a hijacked account that fakes a
 reply, which the data does not yet contain. Kept because they are cheap, explainable, and cover a real
@@ -70,23 +73,27 @@ attacker trick.
 Tier 2 asks two questions: does the email ask for money, gift cards or credentials (TF-IDF intent
 classifier trained on weak pattern labels), and does the relationship look off (new sender, topic
 shift, reply-to or display-name mismatch, new freemail sender)? Both → quarantine, one → banner,
-neither → deliver. A banner is the right action for uncertainty: the user still gets a real invoice,
-but with a warning.
+neither → deliver. One exception: an **established correspondent** (has exchanged mail with this
+mailbox, or has sent the company at least 3 earlier emails) is bannered, never quarantined, by Tier 2.
+Tier 2 signals are soft, and before this rule real vendors' payment requests were being quarantined
+for "asks for payment + topic shift". A banner is the right action for uncertainty: the user still
+gets a real invoice, but with a warning. The price is that a hijacked vendor account can at most be
+bannered by Tier 2.
 
-Gray-zone lower bound, chosen on the validation window (last 7 training days, 1,234 emails, 24 hard
-positives). The rule is "fewest legit emails flagged", because a false quarantine of a real invoice
-costs the customer more than a banner:
+Gray-zone lower bound, chosen on the validation window of seed 42 (last 7 training days, 1,234 emails,
+945 legit, 24 hard positives), with the established-correspondent rule in place:
 
-| Lower bound | Sent to Tier 2 | Recall | Hard-positive recall | Legit flagged (quarantined) |
-|---|---|---|---|---|
-| **0.30 (chosen)** | 0.6% | 95.2% | 46% | 3 (2) |
-| 0.20 | 1.4% | 95.8% | 54% | 10 (3) |
-| 0.10 | 3.3% | 97.2% | 67% | 26 (10) |
-| 0.05 | 9.4% | 99.7% | 96% | 71 (18) |
+| Lower bound | Sent to Tier 2 | Recall | Hard-positive recall | Legit flagged | Legit quarantined |
+|---|---|---|---|---|---|
+| **0.30 (chosen)** | 0.6% | 95.2% | 46% | 3 | 0 |
+| 0.20 | 1.4% | 95.8% | 54% | 10 | 0 |
+| 0.10 | 3.3% | 97.2% | 67% | 26 | 0 |
+| 0.05 | 9.4% | 99.7% | 96% | 71 | 0 |
 
-The trade is real: a lower bound catches far more hijacked-account attacks. The cleaner fix is to let
-an established correspondent be bannered but never quarantined by Tier 2, so the gray zone can widen
-without quarantining real vendors' payment requests.
+Before the rule, the same sweep quarantined 2, 3, 10 and 18 legit emails. Now widening only costs
+banners, so the choice is a **banner budget: at most 1% of legit mail** (≤9 here). 0.3 is the only
+bound inside it; 0.1 would be a reasonable choice for a customer who accepts ~3% bannered mail in
+exchange for catching two thirds of hijacked-account attacks.
 
 ## 6. Labels, classes and noise
 
@@ -123,7 +130,8 @@ spread evenly in time so every class reaches the test split.
   gray-zone-only future tier.
 - **Embedding model (ONNX):** a stronger text signal, but a download, a runtime and more latency for a
   demo whose text-only result is already deliberately limited. Future work.
-- **Bootstrap confidence intervals and a notebook:** kept the repo small; with 71 BEC test emails, a
-  one-email change moves BEC recall by ~1.4 points, which is worth saying instead of computing.
-  Regenerating the data with different content moved BEC recall from 97% to 89%, almost all of it
-  from how many hijacked-vendor emails landed in the test period.
+- **Bootstrap confidence intervals and a notebook:** replaced by a 5-seed rerun of the whole pipeline,
+  which captures what actually varies here (which campaigns and hijacked accounts land in the test
+  period). Single runs moved BEC recall between 85% and 94%; the headline is 90.0 ± 3.7%. Rule
+  severities, hyperparameters and the gray zone were tuned on seed 42 only, so the other seeds are a
+  fair check of them.

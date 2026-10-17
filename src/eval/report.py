@@ -182,10 +182,8 @@ def cost_estimate(cfg: dict, res: pd.DataFrame, compute_ms: float) -> pd.DataFra
 
 
 # ---- main ----------------------------------------------------------------------------------
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--config", default=None)
-    cfg = load_config(ap.parse_args().config)
+def run(cfg: dict) -> dict:
+    """Evaluate one trained config, write its reports/ and return the metrics dict."""
     seed = cfg["seed"]
     seed_everything(seed)
     out_dir = Path(cfg["paths"]["reports"])
@@ -363,6 +361,13 @@ sandbox (${cfg['cost']['sandbox_usd']}), and only when the email was not already
     print(f"tiers: {tiers.round(3).to_dict()}  cost/mailbox/month: base ${base_total:.4f}, "
           f"stress ${stress_total:.4f}; Tier 2 headroom ${per_gray_email:.2f} per gray-zone email")
     print(f"wrote {out_dir}/eval_report.md")
+    return metrics
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--config", default=None)
+    run(load_config(ap.parse_args().config))
 
 
 if __name__ == "__main__":

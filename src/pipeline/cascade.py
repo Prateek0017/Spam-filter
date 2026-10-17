@@ -5,12 +5,15 @@
   Tier 2  gray zone only: does the email ask for money, gift cards or credentials, and is
           something off about the relationship (new sender, topic shift, mismatched
           reply-to / display name, freemail)? Both -> quarantine, one -> banner, neither -> deliver.
+          An established correspondent is never quarantined here, only bannered: Tier 2 signals
+          are soft, and a real vendor's payment request must still reach the user.
   Async   attachments go to the virus scanner the moment the email arrives. The scan is slow
           (median ~2.5s) so the cascade never waits; an infected verdict pulls the email
           from the mailbox after delivery (`remediate`).
 """
 from __future__ import annotations
 
+import math
 import time
 from concurrent.futures import Future
 from dataclasses import dataclass, field
@@ -50,6 +53,7 @@ class Cascade:
         self.lo, self.hi = c["gray_zone"]
         self.topic_shift_hi = c["topic_shift_high"]
         self.intent_min = c["intent_min"]
+        self.established_min_msgs = c["established_min_msgs"]
         self.fx, self.vec, self.text_lr = extractor, text_model["vectorizer"], text_model["lr"]
         self.lgbm, self.intent = lgbm, intent_model
 
@@ -101,7 +105,10 @@ class Cascade:
             asks = [i for i in RISKY_INTENTS if intents[i] >= self.intent_min]
             off = self._relationship_flags(feats)
             reasons += [f"ASKS_{i.upper()}" for i in asks] + off
-            if asks and off:
+            if asks and off and self._established(feats):
+                action = Action.WARNING_BANNER
+                reasons.append("ESTABLISHED_SENDER")
+            elif asks and off:
                 action = Action.QUARANTINE
             elif asks or off:
                 action = Action.SPAM_FOLDER if mal_cat == "spam" and not asks else Action.WARNING_BANNER
@@ -109,6 +116,10 @@ class Cascade:
                 action, cat = Action.DELIVER, "legit"
         latency = (time.perf_counter() - t0) * 1000 + svc_ms
         return Verdict(action, cat, score, tier, reasons, latency, feats, intents, scans)
+
+    def _established(self, f: dict[str, float]) -> bool:
+        """This mailbox has exchanged mail with the sender, or the sender has written to the company often."""
+        return f["prior_exchanges"] > 0 or f["sender_prior_msgs"] >= math.log1p(self.established_min_msgs)
 
     def _relationship_flags(self, f: dict[str, float]) -> list[str]:
         flags = []
