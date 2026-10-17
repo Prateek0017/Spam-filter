@@ -1,0 +1,11 @@
+[project]
+name = "bec-guard"
+version = "0.1.0"
+description = "Tiered spam / phishing / BEC filter for a B2B email platform"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"

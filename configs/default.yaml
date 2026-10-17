@@ -1,0 +1,37 @@
+# Central configuration. Every random process is seeded from `seed`.
+seed: 42
+
+paths:
+  raw: data/raw
+  processed: data/processed
+  sample: data/sample
+  models: models
+  reports: reports
+
+data:
+  n_tenants: 20
+  mailboxes_per_tenant: 30
+  history_days: 90           # relationship history window before the labelled period
+  n_emails: 25000            # labelled emails
+  label_noise: 0.02
+  class_mix:                 # fraction of labelled emails
+    legit: 0.80
+    spam: 0.08
+    phishing: 0.06
+    bec: 0.04
+    malware: 0.02
+  test_fraction_days: 0.2    # last 20% of the labelled period is the test set
+
+# Mocked external services. Latency is lognormal around p50 with a hard client timeout.
+services:
+  ip_reputation:  { p50_ms: 4,    sigma: 0.5, timeout_ms: 50 }
+  whois:          { p50_ms: 8,    sigma: 0.6, timeout_ms: 80 }
+  url_reputation: { p50_ms: 6,    sigma: 0.5, timeout_ms: 60 }
+  virus_scan:     { p50_ms: 2500, sigma: 0.9, timeout_ms: 60000 }   # async path only
+
+# Cascade
+cascade:
+  sync_deadline_ms: 5000     # provider fail-open deadline
+  target_p99_ms: 2000
+  gray_zone: [0.30, 0.80]    # Tier 1 scores sent to Tier 2 (re-tuned in eval)
+  tier2_timeout_ms: 2000

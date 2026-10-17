@@ -1,0 +1,19 @@
+# Runtime dependencies (kept light: no PyTorch; embeddings run on ONNX Runtime via fastembed).
+# This file is also what Streamlit Community Cloud installs for the demo.
+numpy==2.4.6
+pandas==3.0.6
+scikit-learn==1.9.1
+lightgbm==4.7.0
+shap==0.51.0
+rapidfuzz==3.14.6
+tldextract==5.4.0
+faker==40.43.0
+pydantic==2.14.1
+pyyaml==6.0.3
+python-dotenv==1.2.4
+fastembed==0.9.0
+matplotlib==3.11.2
+fastapi==0.143.3
+uvicorn==0.54.0
+httpx==0.28.1
+streamlit==1.66.0

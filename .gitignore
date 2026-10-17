@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+.env
+.DS_Store
+# Generated data and model artifacts (reproducible via `make data train`)
+data/raw/*
+data/processed/*
+data/external/*
+!data/**/.gitkeep
+models/
+.cache/
