@@ -143,6 +143,16 @@ def shap_importance(model: LGBMClassifier, X: pd.DataFrame, top: int = 15) -> pd
     return pd.Series(np.abs(arr).mean(0).sum(-1), index=X.columns).nlargest(top)
 
 
+def text_terms(text_model: dict, n: int = 15) -> pd.DataFrame:
+    """Words / phrases with the largest logistic-regression weights in each direction."""
+    names = text_model["vectorizer"].get_feature_names_out()
+    coef = text_model["lr"].coef_[0]
+    order = np.argsort(coef)
+    return pd.DataFrame({"toward attack": [f"{names[i]} ({coef[i]:+.2f})" for i in order[::-1][:n]],
+                         "toward legit": [f"{names[i]} ({coef[i]:+.2f})" for i in order[:n]]},
+                        index=range(1, n + 1))
+
+
 # ---- cost ----------------------------------------------------------------------------------
 def cost_estimate(cfg: dict, res: pd.DataFrame, compute_ms: float) -> pd.DataFrame:
     c = cfg["cost"]
@@ -225,6 +235,7 @@ def main() -> None:
     cost = cost_estimate(cfg, df, compute_ms)
 
     imp = shap_importance(lgbm, df[FEATURES])
+    terms = text_terms(joblib.load(Path(cfg["paths"]["models"]) / "text_model.joblib"))
     plot_confusion(cm, list(CATEGORIES), out_dir / "confusion_matrix.png")
     plot_shap(imp, out_dir / "shap_top_features.png")
 
@@ -273,6 +284,13 @@ bannered: **{int(hard_tbl.loc[hard_tbl.index.str.startswith('hard_neg'), 'banner
 
 {table(imp.rename("mean |SHAP|").to_frame(), {"mean |SHAP|": ".3f"})}
 
+### What the text model learned
+
+Top TF-IDF terms by logistic-regression weight (URLs, sender display names and the recipient's name are
+masked before vectorising; bigrams never cross a sentence boundary).
+
+{table(terms)}
+
 ## Latency
 
 End-to-end synchronous latency per email: measured compute (features, rules, both models, intent
@@ -303,7 +321,7 @@ sandbox (${cfg['cost']['sandbox_usd']}), and only when the email was not already
     metrics = {"ablation": ablation.to_dict(orient="index"), "per_class": per_class.to_dict(orient="index"),
                "latency_ms": latency.iloc[0].to_dict(), "tier_share": tiers.to_dict(),
                "cost_per_mailbox_month": float(cost["usd_per_mailbox_month"].iloc[-1]),
-               "shap_top": imp.to_dict()}
+               "shap_top": imp.to_dict(), "text_terms": terms.to_dict(orient="list")}
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=1, default=float))
     print(table(ablation, pct | {"pr_auc": ".3f", "hard_neg_fp": ".0f", "legit_fp": ".0f"}))
     print()

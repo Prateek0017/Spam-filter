@@ -11,14 +11,14 @@
    "legit_fp": 0.0
   },
   "Text only (TF-IDF + LR)": {
-   "precision": 0.6309751434034416,
-   "recall": 0.8505154639175257,
-   "f1": 0.7244785949506037,
-   "pr_auc": 0.8959173863718479,
-   "bec_recall": 0.855072463768116,
-   "hard_pos_recall": 0.696969696969697,
-   "hard_neg_fp": 44.0,
-   "legit_fp": 193.0
+   "precision": 0.5372424722662441,
+   "recall": 0.8737113402061856,
+   "f1": 0.6653581943081452,
+   "pr_auc": 0.859546777117632,
+   "bec_recall": 0.927536231884058,
+   "hard_pos_recall": 0.8181818181818182,
+   "hard_neg_fp": 85.0,
+   "legit_fp": 292.0
   },
   "Metadata only (no text features)": {
    "precision": 0.9652406417112299,
@@ -32,57 +32,57 @@
   },
   "Full model (LightGBM)": {
    "precision": 1.0,
-   "recall": 0.9536082474226805,
-   "f1": 0.9762532981530343,
-   "pr_auc": 0.9934725089128117,
+   "recall": 0.9587628865979382,
+   "f1": 0.9789473684210527,
+   "pr_auc": 0.992958642869233,
    "bec_recall": 0.9710144927536232,
-   "hard_pos_recall": 0.45454545454545453,
+   "hard_pos_recall": 0.5151515151515151,
    "hard_neg_fp": 0.0,
    "legit_fp": 0.0
   },
   "Full cascade (blocked)": {
-   "precision": 0.9972527472527473,
-   "recall": 0.9355670103092784,
-   "f1": 0.9654255319148937,
+   "precision": 0.9918478260869565,
+   "recall": 0.9407216494845361,
+   "f1": 0.9656084656084656,
    "pr_auc": NaN,
-   "bec_recall": 0.9420289855072463,
-   "hard_pos_recall": 0.2727272727272727,
-   "hard_neg_fp": 1.0,
-   "legit_fp": 1.0
+   "bec_recall": 0.9565217391304348,
+   "hard_pos_recall": 0.3333333333333333,
+   "hard_neg_fp": 3.0,
+   "legit_fp": 3.0
   },
   "Full cascade (blocked or banner)": {
-   "precision": 0.9841688654353562,
-   "recall": 0.961340206185567,
-   "f1": 0.9726205997392438,
+   "precision": 0.986737400530504,
+   "recall": 0.9587628865979382,
+   "f1": 0.9725490196078431,
    "pr_auc": NaN,
    "bec_recall": 0.9710144927536232,
    "hard_pos_recall": 0.5454545454545454,
-   "hard_neg_fp": 6.0,
-   "legit_fp": 6.0
+   "hard_neg_fp": 5.0,
+   "legit_fp": 5.0
   },
   "Full cascade + async virus scan": {
-   "precision": 0.9841688654353562,
-   "recall": 0.961340206185567,
-   "f1": 0.9726205997392438,
+   "precision": 0.986737400530504,
+   "recall": 0.9587628865979382,
+   "f1": 0.9725490196078431,
    "pr_auc": NaN,
    "bec_recall": 0.9710144927536232,
    "hard_pos_recall": 0.5454545454545454,
-   "hard_neg_fp": 6.0,
-   "legit_fp": 6.0
+   "hard_neg_fp": 5.0,
+   "legit_fp": 5.0
   }
  },
  "per_class": {
   "legit": {
-   "precision": 0.990530303030303,
-   "recall": 0.9961904761904762,
-   "f1": 0.99335232668566,
+   "precision": 0.9899117276166457,
+   "recall": 0.9968253968253968,
+   "f1": 0.9933565327428029,
    "support": 1575,
-   "pr_auc (LightGBM)": 0.9994170803708544
+   "pr_auc (LightGBM)": 0.99929303871651
   },
   "spam": {
-   "precision": 1.0,
+   "precision": 0.9856115107913669,
    "recall": 1.0,
-   "f1": 1.0,
+   "f1": 0.9927536231884058,
    "support": 137,
    "pr_auc (LightGBM)": 1.0
   },
@@ -91,50 +91,86 @@
    "recall": 0.918918918918919,
    "f1": 0.9577464788732394,
    "support": 111,
-   "pr_auc (LightGBM)": 0.993702794492973
+   "pr_auc (LightGBM)": 0.9945625244318842
   },
   "bec": {
-   "precision": 0.9178082191780822,
-   "recall": 0.9710144927536232,
-   "f1": 0.9436619718309859,
+   "precision": 0.9565217391304348,
+   "recall": 0.9565217391304348,
+   "f1": 0.9565217391304348,
    "support": 69,
-   "pr_auc (LightGBM)": 0.9906989340358567
+   "pr_auc (LightGBM)": 0.9882966002593162
   },
   "malware": {
-   "precision": 1.0,
-   "recall": 0.9436619718309859,
-   "f1": 0.9710144927536232,
+   "precision": 0.9850746268656716,
+   "recall": 0.9295774647887324,
+   "f1": 0.9565217391304348,
    "support": 71,
-   "pr_auc (LightGBM)": 0.9977771539651902
+   "pr_auc (LightGBM)": 0.9960798979433769
   }
  },
  "latency_ms": {
-  "p50": 9.67988591790845,
-  "p95": 22.549794444671864,
-  "p99": 28.26268472144428,
-  "max": 68.28878604703532
+  "p50": 9.744452954166983,
+  "p95": 22.56731170261934,
+  "p99": 28.328829099368782,
+  "max": 72.33857800149308
  },
  "tier_share": {
   "0": 0.033622007131940905,
-  "1": 0.9546612328069282,
-  "2": 0.011716760061130923
+  "1": 0.9551706571574121,
+  "2": 0.011207335710646969
  },
- "cost_per_mailbox_month": 0.20280702162869046,
+ "cost_per_mailbox_month": 0.19731032063424117,
  "shap_top": {
-  "text_score": 2.048710955965321,
-  "min_url_domain_age_days": 0.9069704093241522,
-  "payment_kw": 0.8544970207488043,
-  "lookalike_score": 0.8047939866228824,
-  "topic_shift": 0.7025384447150502,
-  "sender_domain_age_days": 0.6806748626184408,
-  "sender_prior_msgs": 0.6613412491017722,
-  "risky_attachments": 0.5921302658534062,
-  "prior_exchanges": 0.5230767020477839,
-  "ip_score": 0.41565267874802414,
-  "domain_volume_24h": 0.3155650842446643,
-  "n_urls": 0.3032745497727186,
-  "urgency_kw": 0.25344460069275465,
-  "url_bad_verdict": 0.20446204791059522,
-  "is_internal": 0.18089549968834473
+  "text_score": 1.7073383368727921,
+  "payment_kw": 0.9507168310372754,
+  "min_url_domain_age_days": 0.8562433555556168,
+  "sender_domain_age_days": 0.8164459244862052,
+  "lookalike_score": 0.8060613885704175,
+  "topic_shift": 0.7228814685011854,
+  "sender_prior_msgs": 0.68227686547236,
+  "risky_attachments": 0.5999450858950521,
+  "prior_exchanges": 0.48481085024190806,
+  "ip_score": 0.35640085636834434,
+  "domain_volume_24h": 0.3516261094067771,
+  "urgency_kw": 0.3075632183366334,
+  "n_urls": 0.2623585722710448,
+  "url_bad_verdict": 0.22153414494832205,
+  "offdomain_urls": 0.21042233630226925
+ },
+ "text_terms": {
+  "toward attack": [
+   "authentication today (+2.20)",
+   "account (+2.07)",
+   "here url (+1.96)",
+   "here (+1.94)",
+   "last email (+1.93)",
+   "on my (+1.93)",
+   "last (+1.93)",
+   "book (+1.93)",
+   "my last (+1.93)",
+   "time here (+1.93)",
+   "book time (+1.93)",
+   "purchase (+1.92)",
+   "purchase order (+1.75)",
+   "47 (+1.68)",
+   "the updated (+1.62)"
+  ],
+  "toward legit": [
+   "unchanged (-2.69)",
+   "are unchanged (-2.69)",
+   "payment details (-2.52)",
+   "details are (-2.41)",
+   "walk (-2.37)",
+   "are (-2.30)",
+   "walk through (-2.29)",
+   "through it (-2.29)",
+   "it on (-2.29)",
+   "to walk (-2.29)",
+   "the (-2.16)",
+   "from (-2.06)",
+   "through (-2.02)",
+   "hi (-1.99)",
+   "on (-1.97)"
+  ]
  }
 }

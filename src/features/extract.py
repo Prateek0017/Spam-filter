@@ -55,8 +55,18 @@ URL_RE = re.compile(r"\S+://\S+")
 
 
 def email_text(e: Email) -> str:
-    """Subject + body with URLs masked: the text model reads language, URL features judge links."""
-    return URL_RE.sub(" URL ", f"{e.subject}\n{e.body}")
+    """Subject + body with URLs and names masked.
+
+    The text model should judge what an email *says*. Links are judged by the URL features and
+    identity by the sender features; leaving them in lets the text model memorise signatures
+    ("Acme Ltd", "IT Service Desk") instead of learning language.
+    """
+    text = URL_RE.sub(" URL ", f"{e.subject}\n{e.body}")
+    first_name = re.split(r"[._\-+\d]+", e.to_addr.split("@")[0])[0]
+    names = [n for n in (e.from_display.strip(), first_name) if len(n) >= 2]   # whole names only
+    if names:
+        text = re.sub(r"(?<!\w)(" + "|".join(map(re.escape, names)) + r")(?!\w)", " ", text, flags=re.I)
+    return text
 
 
 def lookalike_score(domain: str, protected: set[str]) -> float:

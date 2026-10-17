@@ -1,6 +1,8 @@
 """TF-IDF + logistic regression text score (P(malicious) from subject + body)."""
 from __future__ import annotations
 
+import re
+
 import numpy as np
 from scipy.sparse import csr_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -8,8 +10,21 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 
 
+_SENTENCE = re.compile(r"[.!?\n]+")
+_WORD = re.compile(r"\b\w\w+\b")
+
+
+def sentence_ngrams(text: str) -> list[str]:
+    """Unigrams + bigrams that never cross a sentence boundary ("...assigned. Cheers" is not a bigram)."""
+    out: list[str] = []
+    for sentence in _SENTENCE.split(text.lower()):
+        words = _WORD.findall(sentence)
+        out += words + [f"{a} {b}" for a, b in zip(words, words[1:])]
+    return out
+
+
 def make_vectorizer() -> TfidfVectorizer:
-    return TfidfVectorizer(ngram_range=(1, 2), min_df=2, max_features=30000, sublinear_tf=True)
+    return TfidfVectorizer(analyzer=sentence_ngrams, min_df=2, max_features=30000, sublinear_tf=True)
 
 
 def make_lr(seed: int) -> LogisticRegression:

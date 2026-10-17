@@ -12,22 +12,22 @@ blank for the cascade rows. Hard negatives in test: 247.
 |  | precision | recall | f1 | pr_auc | bec_recall | hard_pos_recall | hard_neg_fp | legit_fp |
 |---|---|---|---|---|---|---|---|---|
 | Rules only (Tier 0 block) | 100.0% | 17.0% | 29.1% | 0.585 | 59.4% | 0.0% | 0 | 0 |
-| Text only (TF-IDF + LR) | 63.1% | 85.1% | 72.4% | 0.896 | 85.5% | 69.7% | 44 | 193 |
+| Text only (TF-IDF + LR) | 53.7% | 87.4% | 66.5% | 0.860 | 92.8% | 81.8% | 85 | 292 |
 | Metadata only (no text features) | 96.5% | 93.0% | 94.8% | 0.985 | 84.1% | 36.4% | 13 | 13 |
-| Full model (LightGBM) | 100.0% | 95.4% | 97.6% | 0.993 | 97.1% | 45.5% | 0 | 0 |
-| Full cascade (blocked) | 99.7% | 93.6% | 96.5% | – | 94.2% | 27.3% | 1 | 1 |
-| Full cascade (blocked or banner) | 98.4% | 96.1% | 97.3% | – | 97.1% | 54.5% | 6 | 6 |
-| Full cascade + async virus scan | 98.4% | 96.1% | 97.3% | – | 97.1% | 54.5% | 6 | 6 |
+| Full model (LightGBM) | 100.0% | 95.9% | 97.9% | 0.993 | 97.1% | 51.5% | 0 | 0 |
+| Full cascade (blocked) | 99.2% | 94.1% | 96.6% | – | 95.7% | 33.3% | 3 | 3 |
+| Full cascade (blocked or banner) | 98.7% | 95.9% | 97.3% | – | 97.1% | 54.5% | 5 | 5 |
+| Full cascade + async virus scan | 98.7% | 95.9% | 97.3% | – | 97.1% | 54.5% | 5 | 5 |
 
 ## Per-class results (full cascade + async scan)
 
 |  | precision | recall | f1 | support | pr_auc (LightGBM) |
 |---|---|---|---|---|---|
-| legit | 99.1% | 99.6% | 99.3% | 1575 | 0.999 |
-| spam | 100.0% | 100.0% | 100.0% | 137 | 1.000 |
-| phishing | 100.0% | 91.9% | 95.8% | 111 | 0.994 |
-| bec | 91.8% | 97.1% | 94.4% | 69 | 0.991 |
-| malware | 100.0% | 94.4% | 97.1% | 71 | 0.998 |
+| legit | 99.0% | 99.7% | 99.3% | 1575 | 0.999 |
+| spam | 98.6% | 100.0% | 99.3% | 137 | 1.000 |
+| phishing | 100.0% | 91.9% | 95.8% | 111 | 0.995 |
+| bec | 95.7% | 95.7% | 95.7% | 69 | 0.988 |
+| malware | 98.5% | 93.0% | 95.7% | 71 | 0.996 |
 
 **BEC** is the class that matters most and is hardest: no links, no attachments to scan, often sent from a
 real or freemail account. BEC actions by scenario:
@@ -40,17 +40,17 @@ real or freemail account. BEC actions by scenario:
 | bec:vendor_invoice | 0 | 29 | 0 |
 | bec:wire_freemail | 0 | 1 | 0 |
 | bec:wire_lookalike | 0 | 14 | 0 |
-| hard_pos:compromised_vendor | 2 | 1 | 2 |
+| hard_pos:compromised_vendor | 2 | 2 | 1 |
 
 ### Actions per true class
 
 |  | DELIVER | WARNING_BANNER | SPAM_FOLDER | QUARANTINE |
 |---|---|---|---|---|
-| legit | 1569 | 5 | 0 | 1 |
+| legit | 1570 | 2 | 1 | 2 |
 | spam | 0 | 0 | 137 | 0 |
-| phishing | 9 | 5 | 0 | 97 |
-| bec | 2 | 2 | 0 | 65 |
-| malware | 4 | 3 | 0 | 64 |
+| phishing | 9 | 6 | 0 | 96 |
+| bec | 2 | 1 | 0 | 66 |
+| malware | 5 | 0 | 0 | 66 |
 
 ![Confusion matrix](confusion_matrix.png)
 
@@ -59,25 +59,25 @@ real or freemail account. BEC actions by scenario:
 Hard positives are attacks from real, trusted accounts or with copied legit wording; hard negatives
 are legit mail that looks risky. Recall on hard positives (any action but DELIVER):
 **54.5%**. Hard negatives
-blocked: **1**,
-bannered: **5**.
+blocked: **3**,
+bannered: **2**.
 
 |  | n | blocked | banner | delivered |
 |---|---|---|---|---|
-| hard_neg:encrypted_zip | 16 | 0 | 0 | 16 |
+| hard_neg:encrypted_zip | 16 | 1 | 0 | 15 |
 | hard_neg:exec_gift_cards | 17 | 0 | 0 | 17 |
 | hard_neg:exec_urgent_payment | 39 | 0 | 0 | 39 |
 | hard_neg:internal_tool | 21 | 0 | 0 | 21 |
 | hard_neg:it_password | 35 | 0 | 0 | 35 |
 | hard_neg:new_vendor | 17 | 0 | 0 | 17 |
-| hard_neg:personal_account | 18 | 0 | 0 | 18 |
+| hard_neg:personal_account | 18 | 1 | 0 | 17 |
 | hard_neg:promo | 12 | 0 | 0 | 12 |
 | hard_neg:rebrand | 20 | 0 | 0 | 20 |
 | hard_neg:vendor_bank_change | 15 | 0 | 0 | 15 |
-| hard_neg:vendor_payment_request | 37 | 1 | 5 | 31 |
-| hard_pos:compromised_account | 22 | 8 | 5 | 9 |
-| hard_pos:compromised_vendor | 5 | 1 | 2 | 2 |
-| hard_pos:password_zip | 6 | 0 | 2 | 4 |
+| hard_neg:vendor_payment_request | 37 | 1 | 2 | 34 |
+| hard_pos:compromised_account | 22 | 8 | 6 | 8 |
+| hard_pos:compromised_vendor | 5 | 2 | 1 | 2 |
+| hard_pos:password_zip | 6 | 1 | 0 | 5 |
 
 ## What drives the model (SHAP)
 
@@ -85,21 +85,44 @@ bannered: **5**.
 
 |  | mean |SHAP| |
 |---|---|
-| text_score | 2.049 |
-| min_url_domain_age_days | 0.907 |
-| payment_kw | 0.854 |
-| lookalike_score | 0.805 |
-| topic_shift | 0.703 |
-| sender_domain_age_days | 0.681 |
-| sender_prior_msgs | 0.661 |
-| risky_attachments | 0.592 |
-| prior_exchanges | 0.523 |
-| ip_score | 0.416 |
-| domain_volume_24h | 0.316 |
-| n_urls | 0.303 |
-| urgency_kw | 0.253 |
-| url_bad_verdict | 0.204 |
-| is_internal | 0.181 |
+| text_score | 1.707 |
+| payment_kw | 0.951 |
+| min_url_domain_age_days | 0.856 |
+| sender_domain_age_days | 0.816 |
+| lookalike_score | 0.806 |
+| topic_shift | 0.723 |
+| sender_prior_msgs | 0.682 |
+| risky_attachments | 0.600 |
+| prior_exchanges | 0.485 |
+| ip_score | 0.356 |
+| domain_volume_24h | 0.352 |
+| urgency_kw | 0.308 |
+| n_urls | 0.262 |
+| url_bad_verdict | 0.222 |
+| offdomain_urls | 0.210 |
+
+### What the text model learned
+
+Top TF-IDF terms by logistic-regression weight (URLs, sender display names and the recipient's name are
+masked before vectorising; bigrams never cross a sentence boundary).
+
+|  | toward attack | toward legit |
+|---|---|---|
+| 1 | authentication today (+2.20) | unchanged (-2.69) |
+| 2 | account (+2.07) | are unchanged (-2.69) |
+| 3 | here url (+1.96) | payment details (-2.52) |
+| 4 | here (+1.94) | details are (-2.41) |
+| 5 | last email (+1.93) | walk (-2.37) |
+| 6 | on my (+1.93) | are (-2.30) |
+| 7 | last (+1.93) | walk through (-2.29) |
+| 8 | book (+1.93) | through it (-2.29) |
+| 9 | my last (+1.93) | it on (-2.29) |
+| 10 | time here (+1.93) | to walk (-2.29) |
+| 11 | book time (+1.93) | the (-2.16) |
+| 12 | purchase (+1.92) | from (-2.06) |
+| 13 | purchase order (+1.75) | through (-2.02) |
+| 14 | 47 (+1.68) | hi (-1.99) |
+| 15 | the updated (+1.62) | on (-1.97) |
 
 ## Latency
 
@@ -110,9 +133,9 @@ deadline 5000 ms.
 
 |  | p50 | p95 | p99 | max |
 |---|---|---|---|---|
-| end-to-end ms | 9.7 | 22.5 | 28.3 | 68.3 |
+| end-to-end ms | 9.7 | 22.6 | 28.3 | 72.3 |
 
-Decided at Tier 0: 3.4%, Tier 1: 95.5%, Tier 2 (gray zone): 1.2%.
+Decided at Tier 0: 3.4%, Tier 1: 95.5%, Tier 2 (gray zone): 1.1%.
 The virus scan runs asynchronously; it pulled 0 delivered emails after the fact (median
 nan ms after arrival).
 
@@ -125,12 +148,12 @@ $0.04/vCPU-hour with a 3.0x overhead on measured compute,
 scan ($5e-05); only archives, macro documents and executables / disk images go to the
 sandbox ($0.002), and only when the email was not already quarantined. Measured on this run:
 2.7 lookups, 0.25 attachments and
-0.023 sandbox submissions per email.
+0.021 sandbox submissions per email.
 
 | item | usd_per_mailbox_month | share_of_budget |
 |---|---|---|
 | Compute (features, rules, models) | 0.0001 | 0.0% |
 | Reputation / WHOIS lookups | 0.0975 | 32.5% |
 | Static AV scan (every attachment) | 0.0226 | 7.5% |
-| Sandbox (risky types, not quarantined) | 0.0825 | 27.5% |
-| **Total** | 0.2028 | 67.6% |
+| Sandbox (risky types, not quarantined) | 0.0770 | 25.7% |
+| **Total** | 0.1973 | 65.8% |
