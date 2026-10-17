@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import json
 import math
 import time
 from concurrent.futures import Future
@@ -22,11 +23,10 @@ from typing import Any
 
 import joblib
 import numpy as np
-import pandas as pd
 
 from src.data.io import load_tenants
 from src.data.schema import CATEGORIES, Action, Email, SentMessage
-from src.features.extract import FEATURES, FeatureExtractor, email_text
+from src.features.extract import FeatureExtractor, email_text, model_input
 from src.pipeline.intent import RISKY_INTENTS
 from src.rules.engine import blocks, run_rules
 from src.services import ServiceResult, build_services
@@ -48,7 +48,7 @@ class Verdict:
 
 class Cascade:
     def __init__(self, cfg: dict[str, Any], extractor: FeatureExtractor, text_model: dict, lgbm: Any,
-                 intent_model: Any) -> None:
+                 intent_model: Any, fill: dict[str, float] | None = None) -> None:
         c = cfg["cascade"]
         self.lo, self.hi = c["gray_zone"]
         self.topic_shift_hi = c["topic_shift_high"]
@@ -56,6 +56,7 @@ class Cascade:
         self.established_min_msgs = c["established_min_msgs"]
         self.fx, self.vec, self.text_lr = extractor, text_model["vectorizer"], text_model["lr"]
         self.lgbm, self.intent = lgbm, intent_model
+        self.fill = fill or {}                         # neutral values for missing model inputs
 
     @classmethod
     def load(cls, cfg: dict[str, Any], fresh_history: bool = False, simulate_latency: bool = False) -> "Cascade":
@@ -69,7 +70,8 @@ class Cascade:
         else:
             fx = joblib.load(m / "feature_extractor.joblib")
             fx.services = services
-        return cls(cfg, fx, text_model, joblib.load(m / "lgbm.joblib"), joblib.load(m / "intent.joblib"))
+        return cls(cfg, fx, text_model, joblib.load(m / "lgbm.joblib"), joblib.load(m / "intent.joblib"),
+                   json.loads((m / "feature_fill.json").read_text()))
 
     def observe(self, item: Email | SentMessage) -> None:
         """Add a delivered email, or a message the mailbox sent, to relationship history."""
@@ -81,12 +83,13 @@ class Cascade:
     def classify(self, email: Email) -> Verdict:
         t0 = time.perf_counter()
         scans = [self.fx.services.virus.submit(a) for a in email.attachments]   # runs alongside
-        x = self.vec.transform([email_text(email)])
+        text = email_text(email)
+        x = self.vec.transform([text])
         feats, svc_ms = self.fx.extract(email, x)
         hits = run_rules(feats)
         reasons = [r.code for r in hits]
         feats["text_score"] = float(self.text_lr.predict_proba(x)[0, 1])
-        proba = self.lgbm.predict_proba(pd.DataFrame([feats], columns=FEATURES))[0]
+        proba = self.lgbm.predict_proba(model_input([feats], self.fill))[0]
         score = float(1 - proba[0])
         mal_cat = CATEGORIES[1 + int(np.argmax(proba[1:]))]
         bad_action = Action.SPAM_FOLDER if mal_cat == "spam" else Action.QUARANTINE
@@ -101,7 +104,7 @@ class Cascade:
             reasons.append("MODEL_HIGH_RISK")
         else:
             tier, cat = 2, mal_cat
-            intents = self.intent.predict(x)[0]
+            intents = self.intent.predict(x, [text])[0]
             asks = [i for i in RISKY_INTENTS if intents[i] >= self.intent_min]
             off = self._relationship_flags(feats)
             reasons += [f"ASKS_{i.upper()}" for i in asks] + off
@@ -114,6 +117,7 @@ class Cascade:
                 action = Action.SPAM_FOLDER if mal_cat == "spam" and not asks else Action.WARNING_BANNER
             else:
                 action, cat = Action.DELIVER, "legit"
+        reasons = list(dict.fromkeys(reasons))                 # a rule and a flag can share a code
         latency = (time.perf_counter() - t0) * 1000 + svc_ms
         return Verdict(action, cat, score, tier, reasons, latency, feats, intents, scans)
 

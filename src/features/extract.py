@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import numpy as np
+import pandas as pd
 from rapidfuzz import fuzz
 from scipy.sparse import csr_matrix
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -83,6 +84,18 @@ def mask(text: str, e: Email) -> str:
     if names:
         text = re.sub(r"(?<!\w)(" + "|".join(map(re.escape, names)) + r")(?!\w)", " ", text, flags=re.I)
     return text
+
+
+def model_input(rows: pd.DataFrame | list[dict[str, float]], fill: dict[str, float]) -> pd.DataFrame:
+    """Model input: FEATURES in order, missing values replaced by neutral training medians.
+
+    A feature is missing when there is nothing to measure (no earlier mail for topic shift, no links)
+    or a lookup timed out. Left as NaN, LightGBM learns that "missing" itself means attack, because
+    new senders are mostly attackers in training. Filling with the median makes it neutral; "new
+    sender" is still carried explicitly by first_time_sender. Rules see the raw values (NaN never fires).
+    """
+    X = rows[FEATURES] if isinstance(rows, pd.DataFrame) else pd.DataFrame(rows, columns=FEATURES)
+    return X.fillna(fill)
 
 
 def lookalike_score(domain: str, protected: set[str]) -> float:

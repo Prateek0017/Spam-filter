@@ -10,7 +10,8 @@ from __future__ import annotations
 GREETINGS = ["Hi {first},", "Hello {first},", "Dear {first},", "{first},", "Hi,", "Good morning {first},",
              "Hi all,", "Hey {first},"]
 SIGNOFFS = ["Thanks,\n{sender}", "Best regards,\n{sender}", "Regards,\n{sender}", "Cheers,\n{sender}",
-            "Thank you,\n{sender}", "{sender}", "Sent from my iPhone", "Best,\n{sender}"]
+            "Thank you,\n{sender}", "{sender}", "Sent from my iPhone", "Best,\n{sender}",
+            "Best regards,\n{sender}\nTel: {phone}", "Thanks,\n{sender}\nMobile: {phone}"]
 FILLERS = ["Let me know if you have any questions.", "Hope your week is going well.",
            "Sorry for the slow reply, it's been a busy week.", "Thanks in advance for your help.",
            "Please treat this as a priority.", "Happy to jump on a call if easier.",
@@ -144,6 +145,50 @@ HN_ENCRYPTED_ZIP = ("Re: {topic}", "Files attached as discussed. The archive is 
 HN_REBRAND = ("We have a new name and domain", "{vendor_name} is now part of a new group and we've moved to a new "
                                                "email domain. Please update your contacts. Nothing else changes, "
                                                "including our bank details.")
+
+HN_RECRUITER = [
+    ("Candidates for the {item} buyer role", "Following our call, I'm sending two more candidates for the buyer "
+                                             "role. Both are available for interviews next {day}. Happy to discuss "
+                                             "fees and timing, you can reach me on {phone}."),
+    ("Interview confirmation", "Confirming the interview with our candidate on {day} at 10am. She can start within "
+                               "four weeks. Our placement fee is as agreed in the contract. Call me on {phone} with "
+                               "any questions."),
+]
+
+# ---- advance-fee and fake-job scams (phishing class) --------------------------------------
+# No links, no attachments: a too-good offer, an upfront fee in some currency, and a move to chat.
+AF_GREETINGS = ["Dear Candidate,", "Dear Applicant,", "Dear Beneficiary,", "Attention:", "Hello,", "Dear Sir/Madam,",
+                "Congratulations!", "Dear {first},"]
+AF_SIGNOFFS = ["HR Department", "Recruitment Team", "Talent Acquisition", "Claims Department", "Mr. {fake_name}",
+               "Regards,\n{fake_name}\nHiring Manager", "Remittance Office", "Yours faithfully,\n{fake_name}"]
+ADVANCE_FEE = [
+    ("Job offer: {role} at {brand}", "You have been selected for the {role} position at {brand} with a salary of "
+                                     "{salary}. To complete onboarding you must pay a registration fee of {fee}. "
+                                     "Contact our HR manager on {contact} to proceed."),
+    ("You are hired - {brand}", "We are happy to confirm your appointment as {role} at {brand}, working from home. "
+                                "A refundable deposit of {fee} is required for your equipment kit. Send it and "
+                                "message us on {contact}."),
+    ("Interview result: successful", "Your interview for {role} at {brand} was successful. Before your start date, "
+                                     "kindly transfer {fee} for the background verification and visa processing. "
+                                     "For details reach {contact}."),
+    ("Offer letter enclosed", "Congratulations, {brand} would like to offer you the {role} position. As per company "
+                              "policy, new hires pay a {fee} training fee which is reimbursed in the first salary. "
+                              "Our coordinator is available on {contact}."),
+    ("Claim your prize", "Your email was selected in our annual international promotion and you have won {prize}. "
+                         "To release the funds a clearance fee of {fee} must be paid first. Contact our claims agent "
+                         "on {contact}."),
+    ("Compensation fund release", "You are listed as a beneficiary of an unclaimed compensation fund worth {prize}. "
+                                  "A processing charge of {fee} applies before transfer. Reply or reach our "
+                                  "remittance officer on {contact}."),
+    ("Loan approved", "Your business loan of {prize} has been approved at 2% interest. Pay the insurance fee of {fee} "
+                      "to receive the money within 24 hours. Our agent will assist you on {contact}."),
+    ("Part-time opportunity", "Earn {salary} from home in your free time as a {role} for {brand}. Only a small "
+                              "activation fee of {fee} is needed to start. Message {contact} now, places are "
+                              "limited."),
+]
+AF_BRANDS = ["Tesla", "Amazon", "Google", "Shell", "Pfizer", "Netflix", "DHL", "Microsoft", "Emirates", "Walmart"]
+AF_ROLES = ["Remote Data Entry Associate", "Customer Support Agent", "Logistics Coordinator", "Product Tester",
+            "Virtual Assistant", "Payroll Clerk", "Social Media Moderator", "Warehouse Supervisor"]
 
 # ---- spam --------------------------------------------------------------------------------
 SPAM = [

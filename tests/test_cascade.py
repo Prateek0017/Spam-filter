@@ -31,9 +31,10 @@ class StubLR:
 
 class StubIntent:
     def __init__(self, **intents: float) -> None:
-        self.intents = {"payment": 0.0, "gift_card": 0.0, "credential": 0.0, "urgency": 0.0} | intents
+        self.intents = {"payment": 0.0, "gift_card": 0.0, "credential": 0.0, "urgency": 0.0,
+                        "off_channel": 0.0} | intents
 
-    def predict(self, X):  # type: ignore[no-untyped-def]
+    def predict(self, X, texts):  # type: ignore[no-untyped-def]
         return [self.intents]
 
 
@@ -107,3 +108,17 @@ def test_tier0_block_and_async_virus_scan(world) -> None:
     assert v.action == Action.DELIVER                       # sync path does not wait for the scan
     v, scan_ms = Cascade.remediate(v, timeout_s=5)
     assert v.action == Action.QUARANTINE and "VIRUS_DETECTED" in v.reasons and scan_ms > 0
+
+
+def test_intent_keyword_layer() -> None:
+    from src.pipeline.intent import asks_for_money, asks_off_channel
+
+    scam = "You are hired at tesla, pay 5000 dollar as resignation fee at +1 (415) 555-0172"
+    assert asks_for_money(scam) and asks_off_channel(scam)
+    assert asks_for_money("Rs 15,000 processing charge") and asks_for_money("a refundable deposit is required")
+    assert asks_off_channel("message our HR manager on Telegram @hr_desk")
+    # Identifiers and times are not phone numbers; ordinary requests are not money requests.
+    for text in ("Invoice INV-40236 for PO-1234", "order 44017 on July 20th", "tracking US9514901185421",
+                 "see you at 12:30 in room 4"):
+        assert not asks_off_channel(text)
+    assert not asks_for_money("Can you review the Q3 deck before Friday?")

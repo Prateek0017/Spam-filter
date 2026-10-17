@@ -14,8 +14,9 @@ data:             ## Generate synthetic tenants, threat intel and ~10k labelled 
 train:            ## Build point-in-time features, train text model + LightGBM
 	$(PY) -m src.models.train --config $(CONFIG)
 
-eval:             ## Metrics, SHAP, ablation, latency + cost reports -> reports/
+eval:             ## Metrics, SHAP, ablation, latency + cost reports, OOD check -> reports/
 	$(PY) -m src.eval.report --config $(CONFIG)
+	$(PY) -m src.eval.ood --config $(CONFIG)
 
 multiseed:        ## Whole pipeline over 5 seeds -> reports/multiseed.md (mean ± std, ~3 minutes)
 	$(PY) -m src.eval.multiseed --config $(CONFIG)

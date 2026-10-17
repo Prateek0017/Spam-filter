@@ -3,6 +3,11 @@
 A TF-IDF one-vs-rest logistic regression predicts four request intents. There are no
 hand-labelled intents, so training labels come from simple patterns (weak supervision);
 the classifier generalises them across phrasings and gives a probability instead of a hit.
+
+Next to it, a deterministic keyword layer catches what a bag-of-words model trained on this
+data can miss: any money request (a currency amount, or words like pay / fee / deposit /
+transfer) and any request to move off email (a phone number, WhatsApp, Telegram). If it fires,
+the intent counts as present whatever the classifier says.
 """
 from __future__ import annotations
 
@@ -20,8 +25,27 @@ INTENT_PATTERNS: dict[str, re.Pattern[str]] = {
     "credential": re.compile(r"\b(password|sign in|log ?in|verify your (account|login)|credentials)\b"),
     "urgency": re.compile(r"\b(urgent(ly)?|asap|today|immediately|end of day|overdue|expires?)\b"),
 }
-INTENTS = list(INTENT_PATTERNS)
-RISKY_INTENTS = ("payment", "gift_card", "credential")
+MONEY_AMOUNT = re.compile(
+    r"(?:[$€£₹]|\b(?:usd|eur|gbp|inr|rs\.?)\s?)\s?\d[\d,.]*"
+    r"|\b\d[\d,.]*\s?(?:dollars?|usd|eur|euros?|pounds?|gbp|rupees?|rs|inr|bitcoin|btc)\b", re.I)
+MONEY_WORDS = re.compile(r"\b(pay|paid|payment|fees?|deposit|transfer|wire|remit|bitcoin|btc|crypto|gift cards?)\b",
+                         re.I)
+CHAT_APPS = re.compile(r"\b(whats ?app|telegram|signal app|viber|wechat)\b|t\.me/", re.I)
+PHONE_LIKE = re.compile(r"(?<![\w$€£₹.,])\+?\(?\d[\d\s().-]{7,}\d(?![\w.,])")
+
+INTENTS = [*INTENT_PATTERNS, "off_channel"]
+RISKY_INTENTS = ("payment", "gift_card", "credential", "off_channel")
+
+
+def asks_for_money(text: str) -> bool:
+    return bool(MONEY_AMOUNT.search(text) or MONEY_WORDS.search(text))
+
+
+def asks_off_channel(text: str) -> bool:
+    """A chat app, or a phone number (9-15 digits, so invoice / order numbers don't count)."""
+    if CHAT_APPS.search(text):
+        return True
+    return any(9 <= sum(c.isdigit() for c in m.group()) <= 15 for m in PHONE_LIKE.finditer(text))
 
 
 def weak_labels(texts: list[str]) -> np.ndarray:
@@ -36,6 +60,13 @@ class IntentModel:
         self.clf.fit(X, weak_labels(texts))
         return self
 
-    def predict(self, X: csr_matrix) -> list[dict[str, float]]:
-        P = self.clf.predict_proba(X)
-        return [dict(zip(INTENTS, map(float, row))) for row in P]
+    def predict(self, X: csr_matrix, texts: list[str]) -> list[dict[str, float]]:
+        """Classifier probabilities, raised to 1.0 where the keyword layer fires."""
+        out = []
+        for row, text in zip(self.clf.predict_proba(X), texts):
+            intents = dict(zip(INTENT_PATTERNS, map(float, row)))
+            if asks_for_money(text):
+                intents["payment"] = 1.0
+            intents["off_channel"] = 1.0 if asks_off_channel(text) else 0.0
+            out.append(intents)
+        return out

@@ -26,7 +26,7 @@ from sklearn.metrics import average_precision_score, confusion_matrix, precision
 from src.common.config import load_config, seed_everything
 from src.data.io import load_emails, load_sent
 from src.data.schema import CATEGORIES, Action, Email
-from src.features.extract import ARCHIVE_EXTENSIONS, FEATURES, SUBJECT_FEATURES, merge_stream
+from src.features.extract import ARCHIVE_EXTENSIONS, FEATURES, SUBJECT_FEATURES, merge_stream, model_input
 from src.models.train import split_dates
 from src.pipeline.cascade import Cascade
 from src.services.virus_scan import MACRO_EXTENSIONS, RISKY_EXTENSIONS
@@ -194,18 +194,21 @@ def run(cfg: dict) -> dict:
     res = replay(cfg)
     df = feats.merge(res, on="message_id")
     y = df["true_label"]
-    proba = lgbm.predict_proba(df[FEATURES])
+    fill = json.loads((Path(cfg["paths"]["models"]) / "feature_fill.json").read_text())
+    X = model_input(df, fill)
+    proba = lgbm.predict_proba(X)
     df["model_score"] = 1 - proba[:, 0]
     assert np.allclose(df["model_score"], df["score"], atol=1e-6), "replayed features differ from training table"
 
     # Ablation: same test rows, same true labels.
     train_start, _ = split_dates(cfg)
     fit = feats[(feats["split"] == "train") & (feats["timestamp"] >= train_start)]
+    X_fit = model_input(fit, fill)
     def ablation_score(cols: list[str]) -> pd.Series:
         """Retrain LightGBM (same params, same rows) on a feature subset; P(malicious) on test."""
         m = LGBMClassifier(objective="multiclass", **cfg["model"]["lgbm"], random_state=seed, verbose=-1)
-        m.fit(fit[cols], fit["category"].map({c: i for i, c in enumerate(CATEGORIES)}))
-        return pd.Series(1 - m.predict_proba(df[cols])[:, 0], index=df.index)
+        m.fit(X_fit[cols], fit["category"].map({c: i for i, c in enumerate(CATEGORIES)}))
+        return pd.Series(1 - m.predict_proba(X[cols])[:, 0], index=df.index)
 
     meta_score = ablation_score([f for f in FEATURES if f not in TEXT_FEATURES + SUBJECT_FEATURES])
     nosubj_score = ablation_score([f for f in FEATURES if f not in SUBJECT_FEATURES])
@@ -253,7 +256,7 @@ def run(cfg: dict) -> dict:
     gray_per_month = c["emails_per_mailbox_day"] * 30 * tiers.get(2, 0)
     per_gray_email = headroom / gray_per_month if gray_per_month else float("nan")
 
-    imp = shap_importance(lgbm, df[FEATURES])
+    imp = shap_importance(lgbm, X)
     terms = text_terms(joblib.load(Path(cfg["paths"]["models"]) / "text_model.joblib"))
     plot_confusion(cm, list(CATEGORIES), out_dir / "confusion_matrix.png")
     plot_shap(imp, out_dir / "shap_top_features.png")

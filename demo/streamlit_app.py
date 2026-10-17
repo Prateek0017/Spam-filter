@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.common.config import load_config  # noqa: E402
 from src.data.io import load_emails, load_tenants  # noqa: E402
 from src.data.schema import Action, Attachment, AuthResults, Email, Url  # noqa: E402
-from src.features.extract import FEATURES  # noqa: E402
+from src.features.extract import FEATURES, model_input  # noqa: E402
 from src.models.train import split_dates  # noqa: E402
 from src.pipeline.cascade import Cascade, Verdict  # noqa: E402
 from src.rules.engine import RULES  # noqa: E402
@@ -46,6 +46,12 @@ EXAMPLES = [
     ("Missed: hijacked vendor account asks to pay a new account",
      lambda e: e.scenario == "hard_pos:compromised_vendor", lambda v: v.action == Action.DELIVER),
 ]
+# Hand-written example reported by a tester (a job / advance-fee scam from a new Gmail sender).
+TESTER_JOB_SCAM = dict(
+    name="Job scam: pay a fee to a phone number (tester report)",
+    from_addr="tesla.hiring.office@gmail.com", from_display="Tesla HR", subject="You are hired",
+    body="You are hired at tesla, pay 5000 dollar as resignation fee at +1 (415) 555-0172")
+
 REASONS = {r.code: r.description for r in RULES} | {
     "MODEL_HIGH_RISK": "LightGBM is confident this is malicious",
     "ASKS_PAYMENT": "Asks for a payment, wire or bank-detail change",
@@ -55,6 +61,7 @@ REASONS = {r.code: r.description for r in RULES} | {
     "TOPIC_SHIFT": "Very different from what this sender usually writes",
     "FREEMAIL_SENDER": "New sender on a free webmail domain",
     "ESTABLISHED_SENDER": "Known correspondent: warned with a banner instead of quarantined",
+    "ASKS_OFF_CHANNEL": "Asks to continue by phone, WhatsApp or Telegram",
     "VIRUS_DETECTED": "Attachment scan found malware; email pulled from the mailbox",
 }
 ACTION_STYLE = {Action.DELIVER: ("success", "Delivered"), Action.WARNING_BANNER: ("warning", "Delivered with a warning banner"),
@@ -78,12 +85,20 @@ def load() -> tuple:
     for name, qualifies, wanted in EXAMPLES:
         candidates = [e for e in test if qualifies(e)]
         examples[name] = next((e for e in candidates if wanted(picker.classify(e))), candidates[0])
+    t = load_tenants(raw / "tenants.json")[0]
+    j = TESTER_JOB_SCAM
+    examples[j["name"]] = Email(
+        message_id="<tester-job-scam@demo>", tenant_id=t.tenant_id, to_addr=t.mailboxes[14],
+        timestamp=test_start + timedelta(days=2, hours=11), from_addr=j["from_addr"], from_display=j["from_display"],
+        subject=j["subject"], body=j["body"], sender_ip="198.51.100.77",
+        category="phishing", true_category="phishing", label=1, scenario="tester:job_scam")
     return cfg, cascade, load_tenants(raw / "tenants.json"), examples, test_start, shap.TreeExplainer(cascade.lgbm)
 
 
-def shap_chart(explainer, verdict: Verdict, top: int = 10) -> plt.Figure:
-    """Contributions toward 'malicious' (minus the legit-class SHAP value) for this one email."""
-    X = pd.DataFrame([verdict.features], columns=FEATURES)
+def shap_chart(explainer, verdict: Verdict, fill: dict[str, float], top: int = 10) -> plt.Figure:
+    """Contributions toward 'malicious' (minus the legit-class SHAP value) for this one email.
+    Missing values are explained as the model saw them (neutral fill), but labelled n/a."""
+    X = model_input([verdict.features], fill)
     sv = explainer.shap_values(X)
     legit = (sv[0] if isinstance(sv, list) else np.asarray(sv)[..., 0])
     contrib = pd.Series(-np.asarray(legit).reshape(-1), index=FEATURES)
@@ -167,7 +182,7 @@ def show_verdict(cascade: Cascade, explainer, email: Email) -> None:
             st.dataframe(pd.DataFrame({"probability": v.intents}).style.format("{:.2f}"), width="content")
     with right:
         st.subheader("Why the model scored it this way")
-        st.pyplot(shap_chart(explainer, v), clear_figure=True)
+        st.pyplot(shap_chart(explainer, v, cascade.fill), clear_figure=True)
 
     if v.scans:
         with st.spinner("Attachment scan running asynchronously (the decision above did not wait for it)..."):

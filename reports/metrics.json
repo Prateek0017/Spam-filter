@@ -2,192 +2,192 @@
  "ablation": {
   "Rules only (Tier 0 block)": {
    "precision": 1.0,
-   "recall": 0.11924119241192412,
-   "f1": 0.21307506053268765,
-   "pr_auc": 0.6172077177744864,
-   "bec_recall": 0.28169014084507044,
+   "recall": 0.14560439560439561,
+   "f1": 0.2541966426858513,
+   "pr_auc": 0.556696458213659,
+   "bec_recall": 0.33783783783783783,
    "hard_pos_recall": 0.0,
    "hard_neg_fp": 0.0,
    "legit_fp": 0.0
   },
   "Text only (TF-IDF + LR)": {
-   "precision": 0.5694200351493849,
-   "recall": 0.8780487804878049,
-   "f1": 0.6908315565031983,
-   "pr_auc": 0.8857312592232691,
-   "bec_recall": 0.8873239436619719,
-   "hard_pos_recall": 0.9130434782608695,
-   "hard_neg_fp": 73.0,
-   "legit_fp": 245.0
+   "precision": 0.658695652173913,
+   "recall": 0.8324175824175825,
+   "f1": 0.7354368932038835,
+   "pr_auc": 0.8967934010824454,
+   "bec_recall": 0.7972972972972973,
+   "hard_pos_recall": 0.6111111111111112,
+   "hard_neg_fp": 67.0,
+   "legit_fp": 157.0
   },
   "Metadata only (no text or subject features)": {
-   "precision": 0.96875,
-   "recall": 0.924119241192412,
-   "f1": 0.9459084604715673,
-   "pr_auc": 0.9783267466408793,
-   "bec_recall": 0.7183098591549296,
-   "hard_pos_recall": 0.2608695652173913,
-   "hard_neg_fp": 10.0,
-   "legit_fp": 11.0
+   "precision": 0.9369627507163324,
+   "recall": 0.8983516483516484,
+   "f1": 0.9172510518934082,
+   "pr_auc": 0.9817592660325901,
+   "bec_recall": 0.7972972972972973,
+   "hard_pos_recall": 0.1111111111111111,
+   "hard_neg_fp": 22.0,
+   "legit_fp": 22.0
   },
   "Full model (LightGBM, no subject features)": {
-   "precision": 1.0,
-   "recall": 0.964769647696477,
-   "f1": 0.9820689655172414,
-   "pr_auc": 0.9924971244769853,
-   "bec_recall": 0.8873239436619719,
-   "hard_pos_recall": 0.43478260869565216,
-   "hard_neg_fp": 0.0,
-   "legit_fp": 0.0
+   "precision": 0.9858356940509915,
+   "recall": 0.9560439560439561,
+   "f1": 0.9707112970711297,
+   "pr_auc": 0.9945739782234151,
+   "bec_recall": 0.8513513513513513,
+   "hard_pos_recall": 0.3333333333333333,
+   "hard_neg_fp": 5.0,
+   "legit_fp": 5.0
   },
   "Full model + subject features": {
-   "precision": 1.0,
-   "recall": 0.962059620596206,
-   "f1": 0.9806629834254144,
-   "pr_auc": 0.9926178781944168,
-   "bec_recall": 0.8732394366197183,
-   "hard_pos_recall": 0.43478260869565216,
-   "hard_neg_fp": 0.0,
-   "legit_fp": 0.0
+   "precision": 0.9914529914529915,
+   "recall": 0.9560439560439561,
+   "f1": 0.9734265734265735,
+   "pr_auc": 0.9950075930109553,
+   "bec_recall": 0.8513513513513513,
+   "hard_pos_recall": 0.3333333333333333,
+   "hard_neg_fp": 3.0,
+   "legit_fp": 3.0
   },
   "Full cascade (blocked)": {
    "precision": 1.0,
-   "recall": 0.940379403794038,
-   "f1": 0.9692737430167597,
+   "recall": 0.9120879120879121,
+   "f1": 0.9540229885057471,
    "pr_auc": NaN,
-   "bec_recall": 0.8169014084507042,
-   "hard_pos_recall": 0.2608695652173913,
+   "bec_recall": 0.8108108108108109,
+   "hard_pos_recall": 0.1111111111111111,
    "hard_neg_fp": 0.0,
    "legit_fp": 0.0
   },
   "Full cascade (blocked or banner)": {
-   "precision": 0.994413407821229,
-   "recall": 0.964769647696477,
-   "f1": 0.9793672627235214,
+   "precision": 0.9697802197802198,
+   "recall": 0.9697802197802198,
+   "f1": 0.9697802197802198,
    "pr_auc": NaN,
-   "bec_recall": 0.8873239436619719,
-   "hard_pos_recall": 0.4782608695652174,
-   "hard_neg_fp": 1.0,
-   "legit_fp": 2.0
+   "bec_recall": 0.8918918918918919,
+   "hard_pos_recall": 0.5,
+   "hard_neg_fp": 11.0,
+   "legit_fp": 11.0
   },
   "Full cascade + async virus scan": {
-   "precision": 0.994413407821229,
-   "recall": 0.964769647696477,
-   "f1": 0.9793672627235214,
+   "precision": 0.9697802197802198,
+   "recall": 0.9697802197802198,
+   "f1": 0.9697802197802198,
    "pr_auc": NaN,
-   "bec_recall": 0.8873239436619719,
-   "hard_pos_recall": 0.4782608695652174,
-   "hard_neg_fp": 1.0,
-   "legit_fp": 2.0
+   "bec_recall": 0.8918918918918919,
+   "hard_pos_recall": 0.5,
+   "hard_neg_fp": 11.0,
+   "legit_fp": 11.0
   }
  },
  "per_class": {
   "legit": {
-   "precision": 0.9914977109221713,
-   "recall": 0.9986824769433466,
-   "f1": 0.995077125041024,
-   "support": 1518,
-   "pr_auc (LightGBM)": 0.9992971986485105
+   "precision": 0.9930114358322745,
+   "recall": 0.9930114358322745,
+   "f1": 0.9930114358322745,
+   "support": 1574,
+   "pr_auc (LightGBM)": 0.9996403646467977
   },
   "spam": {
-   "precision": 0.9361702127659575,
+   "precision": 0.9745762711864406,
    "recall": 1.0,
-   "f1": 0.967032967032967,
-   "support": 132,
-   "pr_auc (LightGBM)": 1.0
+   "f1": 0.9871244635193133,
+   "support": 115,
+   "pr_auc (LightGBM)": 0.9999999999999999
   },
   "phishing": {
-   "precision": 0.9883720930232558,
-   "recall": 0.8585858585858586,
-   "f1": 0.918918918918919,
-   "support": 99,
-   "pr_auc (LightGBM)": 0.9671018068412297
+   "precision": 1.0,
+   "recall": 0.9423076923076923,
+   "f1": 0.9702970297029703,
+   "support": 104,
+   "pr_auc (LightGBM)": 0.9991593249691476
   },
   "bec": {
-   "precision": 0.984375,
-   "recall": 0.8873239436619719,
-   "f1": 0.9333333333333333,
-   "support": 71,
-   "pr_auc (LightGBM)": 0.9791365062194981
+   "precision": 0.9041095890410958,
+   "recall": 0.8918918918918919,
+   "f1": 0.8979591836734694,
+   "support": 74,
+   "pr_auc (LightGBM)": 0.9611131761680122
   },
   "malware": {
-   "precision": 1.0,
-   "recall": 1.0,
-   "f1": 1.0,
-   "support": 67,
-   "pr_auc (LightGBM)": 1.0000000000000002
+   "precision": 0.9333333333333333,
+   "recall": 0.9859154929577465,
+   "f1": 0.958904109589041,
+   "support": 71,
+   "pr_auc (LightGBM)": 0.9962012218595194
   }
  },
  "latency_ms": {
-  "p50": 10.306755604027698,
-  "p95": 25.231774029525674,
-  "p99": 33.64266186811799,
-  "max": 79.583172873576
+  "p50": 10.748544671901978,
+  "p95": 23.31233920141198,
+  "p99": 29.78249014722231,
+  "max": 103.29667789506085
  },
  "tier_share": {
-  "0": 0.023317435082140965,
-  "1": 0.9697933227344993,
-  "2": 0.00688924218335983
+  "0": 0.027347781217750257,
+  "1": 0.95562435500516,
+  "2": 0.017027863777089782
  },
  "cost_per_mailbox_month": {
-  "base": 0.008318320303625712,
-  "stress": 0.1996396872870171
+  "base": 0.00898420940404711,
+  "stress": 0.2156210256971306
  },
  "tier2_headroom": {
-  "usd_per_mailbox_month": 0.29168167969637426,
-  "usd_per_gray_zone_email": 0.282258117736953
+  "usd_per_mailbox_month": 0.2910157905959529,
+  "usd_per_gray_zone_email": 0.11393709134847611
  },
  "shap_top": {
-  "text_score": 1.497263869786817,
-  "sender_domain_age_days": 1.0449086706984527,
-  "min_url_domain_age_days": 0.8591964102848935,
-  "payment_kw": 0.8538631236488937,
-  "topic_shift": 0.661915645294311,
-  "risky_attachments": 0.6435209290269592,
-  "subject_body_sim": 0.574552183782586,
-  "lookalike_score": 0.5441889961147367,
-  "subject_caps_ratio": 0.5102425862580146,
-  "ip_score": 0.4992249448999202,
-  "url_bad_verdict": 0.39135487916812256,
-  "prior_exchanges": 0.30109316927742646,
-  "sender_prior_msgs": 0.22147748367328873,
-  "domain_volume_24h": 0.21924834833180856,
-  "offdomain_urls": 0.18222173421198137
+  "text_score": 1.5314141470911316,
+  "payment_kw": 0.831498729734371,
+  "sender_domain_age_days": 0.7580520567245528,
+  "risky_attachments": 0.7316398863960777,
+  "subject_body_sim": 0.6745383463970374,
+  "lookalike_score": 0.594004656751009,
+  "min_url_domain_age_days": 0.587747062659386,
+  "topic_shift": 0.5404435692191989,
+  "url_bad_verdict": 0.4661663705599659,
+  "ip_score": 0.45475331175669365,
+  "subject_caps_ratio": 0.4262797600113289,
+  "domain_volume_24h": 0.4195662865674972,
+  "sender_prior_msgs": 0.3956042327737329,
+  "urgency_kw": 0.2728252124428514,
+  "prior_exchanges": 0.2572085607483993
  },
  "text_terms": {
   "toward attack": [
-   "here (+2.28)",
-   "purchase (+2.08)",
-   "here url (+2.02)",
-   "url (+2.01)",
-   "book (+1.94)",
-   "on my (+1.94)",
-   "book time (+1.94)",
-   "last (+1.94)",
-   "my last (+1.94)",
-   "last email (+1.94)",
-   "time here (+1.94)",
-   "url please (+1.91)",
-   "your (+1.84)",
-   "document (+1.84)",
-   "purchase order (+1.81)"
+   "purchase (+2.22)",
+   "your (+2.07)",
+   "purchase order (+1.94)",
+   "document (+1.93)",
+   "last email (+1.93)",
+   "book time (+1.93)",
+   "book (+1.93)",
+   "time here (+1.93)",
+   "last (+1.93)",
+   "on my (+1.93)",
+   "my last (+1.93)",
+   "here url (+1.90)",
+   "here (+1.89)",
+   "account (+1.86)",
+   "brightcart (+1.77)"
   ],
   "toward legit": [
-   "through it (-2.25)",
-   "it on (-2.25)",
-   "walk through (-2.25)",
-   "to walk (-2.25)",
-   "available (-2.24)",
-   "payment (-2.19)",
-   "unchanged (-2.18)",
-   "are unchanged (-2.18)",
-   "from (-2.17)",
-   "are (-2.11)",
-   "on the (-2.08)",
-   "introduction (-2.06)",
-   "out from (-2.06)",
-   "our capabilities (-2.06)",
-   "capabilities (-2.06)"
+   "unchanged (-3.03)",
+   "are unchanged (-3.03)",
+   "payment details (-2.86)",
+   "hi (-2.79)",
+   "tuesday (-2.70)",
+   "payment (-2.65)",
+   "details are (-2.61)",
+   "from (-2.45)",
+   "on the (-2.23)",
+   "available (-2.23)",
+   "delivery (-2.09)",
+   "on (-2.09)",
+   "are (-2.05)",
+   "the (-2.03)",
+   "capabilities deck (-1.99)"
   ]
  }
 }

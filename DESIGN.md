@@ -11,20 +11,20 @@ mailbox per day, and only $0.00008 per email in a 120/day stress test. The provi
 A cascade spends money only where it is needed: rules and a small LightGBM decide ~99% of mail in
 ~10 ms, and only the gray zone (1%) gets the extra intent check. The same structure is what would make
 an embedding model or an LLM affordable later: plug it into Tier 2 and it sees 1% of traffic, not 100%.
-At the base volume the whole pipeline costs $0.0086 ± 0.0005/mailbox/month (~3% of budget); in seed
-42 that leaves ~$0.28 to spend per gray-zone email.
+At the base volume the whole pipeline costs $0.0084 ± 0.0007/mailbox/month (~3% of budget); in seed
+42 that leaves ~$0.11 to spend per gray-zone email.
 
-Cost of the choice: three places to tune instead of one, and Tier 2 currently adds little over
-LightGBM alone (+1.8 points BEC recall, +6.7 points hard-positive recall, for ~2.4 legit banners per
-run) because Tier 1 is already confident on this data.
+Cost of the choice: three places to tune instead of one. Tier 2 adds a modest amount over LightGBM
+alone (+2.3 points BEC recall, +13.7 points hard-positive recall, for ~6 more legit banners per run)
+because Tier 1 is already confident on this data.
 
 ## 2. Rules explain; they rarely decide
 
 Each rule's precision was measured on the training period. Only two were precise enough to quarantine
 alone (lookalike domain, young domain sending in bulk), and even those only fire as blocks for
 **first-time senders**: legit sister companies have lookalike domains (lookalike precision rises from
-0.91 to 0.97 with this gate). `INTERNAL_SPOOF` (own domain, DMARC fail) looks like a block rule but had
-0.36 precision: the classic cause is a legit SaaS tool sending as the company without DMARC alignment.
+0.90 to 0.97 with this gate, seed 42). `INTERNAL_SPOOF` (own domain, DMARC fail) looks like a block rule but had
+0.45 precision: the classic cause is a legit SaaS tool sending as the company without DMARC alignment.
 All other rules add reason codes and leave the decision to the model. Missing signals (a service
 timeout) never fire a rule: the system fails open, like the provider. No rule looks at the subject
 line: subject signals are cheap for attackers to vary and common in legit mail, so they only feed the
@@ -56,13 +56,26 @@ model's top terms rather than its metrics:
   prefix is now judged only by the history-based `fake_reply` feature.
 
 TF-IDF is fast, free and explainable, but matches words, not meaning; plain-wording attacks are left
-to the metadata features (text-only PR-AUC 0.880 ± 0.019 vs 0.994 ± 0.004 for the full model).
+to the metadata features (text-only PR-AUC 0.895 ± 0.016 vs 0.996 ± 0.001 for the full model). A
+fourth leak, a literal "budget review" topic used only by fake replies, was a generator artifact and
+was removed; one remains visible on purpose ("brightcart", a tenant name that attack templates use).
+
+## 4a. Missing values are neutral
+
+Some features have nothing to measure: topic shift for a sender with no earlier mail, link age for an
+email without links, any lookup that timed out. Left as NaN, LightGBM learned a direction for
+"missing", and because missing history mostly means a new sender (mostly attackers in training), a
+missing topic shift pushed +0.175 toward attack on average. The model now receives the training
+median for any missing value (`feature_fill.json`, saved with the model): that push is +0.004, and the
+"new sender" signal is carried only by the explicit `first_time_sender` feature. Missing link age moved
+from +0.010 to −0.047 (now slightly toward legit, since most link-free mail is legit). Rules still see
+the raw NaN, so a timeout never fires a rule.
 
 ## 4b. Subject-line features
 
 Six subject features (fake reply, subject–body similarity, subject keywords, capitals, "!", emojis)
-went in as model features only. On this data they are neutral (PR-AUC 0.994 ± 0.004 with or without,
-hard-positive recall 42.9 → 43.5%, well inside the noise). The
+went in as model features only. On this data they add little (PR-AUC 0.995 → 0.996, legit flagged
+3.0 → 1.8 per run, hard-positive recall unchanged at 53%). The
 interesting one, `fake_reply`, is redundant here because every fake reply comes from a new attacker
 address that `first_time_sender` already catches; its value is against a hijacked account that fakes a
 reply, which the data does not yet contain. Kept because they are cheap, explainable, and cover a real
@@ -70,9 +83,15 @@ attacker trick.
 
 ## 5. Gray zone and Tier 2
 
-Tier 2 asks two questions: does the email ask for money, gift cards or credentials (TF-IDF intent
-classifier trained on weak pattern labels), and does the relationship look off (new sender, topic
-shift, reply-to or display-name mismatch, new freemail sender)? Both → quarantine, one → banner,
+Tier 2 asks two questions: does the email ask for money, gift cards, credentials or an off-channel
+contact, and does the relationship look off (new sender, topic shift, reply-to or display-name
+mismatch, new freemail sender)? The first question has two parts: a TF-IDF intent classifier trained on
+weak pattern labels, and a deterministic keyword layer (currency amounts in any format, pay / fee /
+deposit / transfer, phone numbers, WhatsApp / Telegram) that overrides it. The layer exists because a
+tester's job scam ("pay 5000 dollar as resignation fee at <phone>") scored 0.02 for payment: a
+bag-of-words model can't know phrasings it never saw, while "a currency amount plus a phone number from
+a stranger" needs no training data. The fix was made generally (keyword layer, plus advance-fee and
+fake-job scams in the generator), not for that one email. Both → quarantine, one → banner,
 neither → deliver. One exception: an **established correspondent** (has exchanged mail with this
 mailbox, or has sent the company at least 3 earlier emails) is bannered, never quarantined, by Tier 2.
 Tier 2 signals are soft, and before this rule real vendors' payment requests were being quarantined
@@ -80,20 +99,20 @@ for "asks for payment + topic shift". A banner is the right action for uncertain
 gets a real invoice, but with a warning. The price is that a hijacked vendor account can at most be
 bannered by Tier 2.
 
-Gray-zone lower bound, chosen on the validation window of seed 42 (last 7 training days, 1,234 emails,
-945 legit, 24 hard positives), with the established-correspondent rule in place:
+Gray-zone lower bound, chosen on the validation window of seed 42 (last 7 training days, 1,204 emails,
+914 legit, 22 hard positives), with the established-correspondent rule and the keyword layer in place:
 
-| Lower bound | Sent to Tier 2 | Recall | Hard-positive recall | Legit flagged | Legit quarantined |
-|---|---|---|---|---|---|
-| **0.30 (chosen)** | 0.6% | 95.2% | 46% | 3 | 0 |
-| 0.20 | 1.4% | 95.8% | 54% | 10 | 0 |
-| 0.10 | 3.3% | 97.2% | 67% | 26 | 0 |
-| 0.05 | 9.4% | 99.7% | 96% | 71 | 0 |
+| Lower bound | Recall | Hard-positive recall | Legit flagged | Legit quarantined |
+|---|---|---|---|---|
+| **0.30 (chosen)** | 99.0% | 86% | 4 | 0 |
+| 0.20 | 99.0% | 86% | 11 | 0 |
+| 0.10 | 99.7% | 95% | 27 | 0 |
+| 0.05 | 100.0% | 100% | 76 | 2 |
 
-Before the rule, the same sweep quarantined 2, 3, 10 and 18 legit emails. Now widening only costs
-banners, so the choice is a **banner budget: at most 1% of legit mail** (≤9 here). 0.3 is the only
-bound inside it; 0.1 would be a reasonable choice for a customer who accepts ~3% bannered mail in
-exchange for catching two thirds of hijacked-account attacks.
+Before the established-correspondent rule, widening quarantined real vendors' payment requests (2, 3,
+10 and 18 legit emails across these bounds on an earlier data draw). Now it mostly costs banners, so
+the choice is a **banner budget: at most 1% of legit mail** (≤9 here). 0.3 is the only bound inside
+it; 0.1 would be a reasonable choice for a customer who accepts ~3% bannered mail.
 
 ## 6. Labels, classes and noise
 
@@ -132,6 +151,18 @@ spread evenly in time so every class reaches the test split.
   demo whose text-only result is already deliberately limited. Future work.
 - **Bootstrap confidence intervals and a notebook:** replaced by a 5-seed rerun of the whole pipeline,
   which captures what actually varies here (which campaigns and hijacked accounts land in the test
-  period). Single runs moved BEC recall between 85% and 94%; the headline is 90.0 ± 3.7%. Rule
+  period). Single runs moved BEC recall between 89% and 99%; the headline is 94.7 ± 4.0%. Rule
   severities, hyperparameters and the gray zone were tuned on seed 42 only, so the other seeds are a
   fair check of them.
+
+## 10. An out-of-distribution check, kept separate
+
+Every number above comes from the same generator that produced the training data, so it measures
+how well the system learned the generator. `data/ood/emails.json` holds 10 hand-written emails in
+styles the generator never uses (job scam via Telegram, lottery, sextortion, SMS-style parcel notice,
+callback scam, Spanish BEC, and four unusual legit emails). They were written before any fix was
+evaluated on them and are never used for tuning; the README reports them separately. Before the keyword
+layer and the advance-fee data: 2 of 6 attacks caught. After: 5.0 ± 0.7 of 6 over 5 seeds, with 3 of 4
+legit delivered cleanly every time. The two consistent failures (self-spoofed sextortion delivered; a
+new customer's refund request quarantined) are documented with proposed fixes rather than patched,
+because patching them would turn the check into training data.

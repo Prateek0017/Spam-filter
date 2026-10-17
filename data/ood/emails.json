@@ -1,0 +1,119 @@
+{
+  "_about": "Hand-written out-of-distribution emails in styles the generator does not use. Written once, before any fix was evaluated on them, and never used for tuning. Placeholders: {tenant_domain}, {mailbox:N}, {exec:ROLE}, {name:ROLE}, {vendor:N} are filled from the tenant at load time. Category is the ground truth.",
+  "tenant": "t00",
+  "emails": [
+    {
+      "id": "ood01_job_telegram",
+      "category": "phishing",
+      "style": "Fake remote job, refundable deposit, Telegram contact",
+      "to": "{mailbox:14}",
+      "from_addr": "careers.amzn.remote@outlook.com",
+      "from_display": "Talent Acquisition Team",
+      "subject": "Your application has been shortlisted",
+      "body": "Dear Candidate,\n\nThank you for your interest. After reviewing your profile we are pleased to offer you a remote Data Entry Associate position (USD 38/hour, flexible schedule).\n\nTo activate your onboarding kit and company laptop a refundable security deposit of 150 USD is required before Friday. Kindly reach our HR manager on Telegram @amzn_hr_desk to complete the process.\n\nWarm regards,\nRecruitment Desk",
+      "auth": {"spf": "pass", "dkim": "pass", "dmarc": "pass"}
+    },
+    {
+      "id": "ood02_lottery",
+      "category": "phishing",
+      "style": "Lottery win, claims agent on WhatsApp",
+      "to": "{mailbox:21}",
+      "from_addr": "claims.dept@euromillions-intl-award.org",
+      "from_display": "EuroMillions International",
+      "subject": "WINNING NOTIFICATION REF: EM/7741/26",
+      "body": "ATTENTION WINNER,\n\nWe are happy to inform you that your e-mail address was selected in the EuroMillions Online Promotion and has won the sum of GBP 850,000.00. Your winning ticket number is 4417-22-0918.\n\nTo begin the release of your funds, contact our claims agent Mr. Albert Hughes on WhatsApp +44 7700 900123 with your full name, address and telephone number. A clearance fee applies.\n\nYours faithfully,\nMrs. Grace Whitfield\nPromotions Manager",
+      "auth": {"spf": "none", "dkim": "none", "dmarc": "none"}
+    },
+    {
+      "id": "ood03_sextortion",
+      "category": "phishing",
+      "style": "Sextortion with a Bitcoin wallet, no links",
+      "to": "{mailbox:9}",
+      "from_addr": "{mailbox:9}",
+      "from_display": "",
+      "subject": "Your account is hacked. Read this carefully",
+      "body": "I am a programmer and I have had access to your device for several months. I recorded you through your webcam while you were visiting certain websites and I have a copy of all your contacts.\n\nIf you want me to delete everything, transfer 1200 USD in Bitcoin to this wallet: bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh\n\nYou have 48 hours. Do not reply to this email, it is not monitored. If I do not receive the payment, the video goes to everyone you know.",
+      "auth": {"spf": "fail", "dkim": "none", "dmarc": "fail"}
+    },
+    {
+      "id": "ood04_fake_delivery",
+      "category": "phishing",
+      "style": "Short SMS-style parcel notice with a link",
+      "to": "{mailbox:17}",
+      "from_addr": "notify@usps-redelivery-track.info",
+      "from_display": "USPS",
+      "subject": "Package on hold",
+      "body": "USPS: your package US9514901185421 is on hold due to an incomplete address. Update within 12 hours or it will be returned: https://usps-redelivery-track.info/u/9514901 Reply STOP to opt out.",
+      "urls": ["https://usps-redelivery-track.info/u/9514901"],
+      "auth": {"spf": "pass", "dkim": "none", "dmarc": "none"}
+    },
+    {
+      "id": "ood05_callback_scam",
+      "category": "phishing",
+      "style": "Fake subscription renewal, call a phone number (no link)",
+      "to": "{exec:AP}",
+      "from_addr": "billing.norton.renewals@gmail.com",
+      "from_display": "Norton Billing",
+      "subject": "Order Confirmation #NRT-55028173",
+      "body": "Thank you for renewing Norton 360 Total Protection (5 devices, 3 years).\n\nAmount charged: $399.99\nPayment method: auto-debit\n\nIf you did not authorize this renewal or wish to cancel and receive a refund, please call our support line at +1 (888) 712-4406 within 24 hours. Refunds cannot be processed after this period.\n\nNorton Billing Department",
+      "auth": {"spf": "pass", "dkim": "pass", "dmarc": "pass"}
+    },
+    {
+      "id": "ood06_spanish_bec",
+      "category": "bec",
+      "style": "BEC in Spanish from a freemail account using the CEO's name",
+      "to": "{exec:Controller}",
+      "from_addr": "direccion.general.ceo@gmail.com",
+      "from_display": "{name:CEO}",
+      "subject": "Transferencia pendiente",
+      "body": "Hola,\n\nNecesito que realices hoy una transferencia urgente de 48.500 EUR a un proveedor nuevo para cerrar una operacion confidencial. No lo comentes con nadie del equipo por ahora. Te envio los datos bancarios en cuanto me confirmes que estas disponible.\n\nGracias,\n{name:CEO}",
+      "auth": {"spf": "pass", "dkim": "pass", "dmarc": "pass"}
+    },
+    {
+      "id": "ood07_legit_emoji_allhands",
+      "category": "legit",
+      "style": "Internal, very casual, emoji-heavy",
+      "to": "{mailbox:12}",
+      "from_addr": "{mailbox:8}",
+      "from_display": "",
+      "subject": "🍕🍕 pizza friday is BACK!!! 🎉",
+      "body": "hey all!! 🙌 pizza friday is back this week, 12:30 in the big conf room. vegan + gf options this time 🌱 reply w/ toppings by thurs or forever hold your peace 😂",
+      "auth": {"spf": "pass", "dkim": "pass", "dmarc": "pass"}
+    },
+    {
+      "id": "ood08_legit_terse_vendor",
+      "category": "legit",
+      "style": "Known vendor, terse, phone number in the body",
+      "to": "{exec:CFO}",
+      "from_addr": "ops@{vendor:0}",
+      "from_display": "",
+      "subject": "SOW rev 3",
+      "body": "pls see attached SOW rev 3, pricing unchanged from rev 2, only the delivery dates moved. call me on +1 415 555 0134 if q's. thx",
+      "attachments": ["SOW_rev3.pdf"],
+      "auth": {"spf": "pass", "dkim": "pass", "dmarc": "pass"}
+    },
+    {
+      "id": "ood09_legit_customer_refund",
+      "category": "legit",
+      "style": "First-time customer on Gmail asking for money back",
+      "to": "{mailbox:20}",
+      "from_addr": "maria.gonzalez.84@gmail.com",
+      "from_display": "Maria Gonzalez",
+      "subject": "Double charged on order 44017",
+      "body": "Hello, I was charged twice ($49.00 each) for order 44017 on July 20th. Could you refund one of the charges to my card? I can send a screenshot of my bank statement if that helps. Thank you, Maria",
+      "auth": {"spf": "pass", "dkim": "pass", "dmarc": "pass"}
+    },
+    {
+      "id": "ood10_legit_benefits",
+      "category": "legit",
+      "style": "Internal HR notice with a sign-in link to a real SaaS",
+      "to": "{mailbox:25}",
+      "from_addr": "{exec:HR}",
+      "from_display": "{name:HR}",
+      "subject": "Open enrollment closes Friday",
+      "body": "Reminder: benefits open enrollment closes this Friday at 5pm. Sign in to Workday to review your medical, dental and 401(k) elections: https://wd5.myworkday.com/northwind/login If you make no changes, your current plan rolls over.",
+      "urls": ["https://wd5.myworkday.com/northwind/login"],
+      "auth": {"spf": "pass", "dkim": "pass", "dmarc": "pass"}
+    }
+  ]
+}

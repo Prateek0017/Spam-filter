@@ -14,6 +14,7 @@ Usage: python -m src.models.train --config configs/default.yaml
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -26,7 +27,7 @@ from sklearn.metrics import average_precision_score, f1_score
 from src.common.config import load_config, seed_everything
 from src.data.io import load_emails, load_sent, load_tenants
 from src.data.schema import CATEGORIES, SentMessage
-from src.features.extract import FEATURES, FeatureExtractor, email_text, merge_stream
+from src.features.extract import FEATURES, FeatureExtractor, email_text, merge_stream, model_input
 from src.models.text import make_lr, make_vectorizer, oof_scores
 from src.pipeline.intent import IntentModel
 from src.rules.engine import RULES, blocks, run_rules
@@ -111,7 +112,8 @@ def run(cfg: dict) -> None:
 
     y = df["category"].map({c: i for i, c in enumerate(CATEGORIES)}).to_numpy()
     model = LGBMClassifier(objective="multiclass", **cfg["model"]["lgbm"], random_state=seed, verbose=-1)
-    model.fit(df.loc[fit, FEATURES], y[fit])
+    fill = {f: float(v) for f, v in df.loc[fit, FEATURES].median().items()}   # neutral value for missing
+    model.fit(model_input(df.loc[fit], fill), y[fit])
 
     intent = IntentModel(seed).fit(X_text[tr], [t for t, keep in zip(texts, tr) if keep])
 
@@ -120,11 +122,12 @@ def run(cfg: dict) -> None:
     joblib.dump({"vectorizer": fx.vectorizer, "lr": text_lr}, models / "text_model.joblib")
     joblib.dump(model, models / "lgbm.joblib")
     joblib.dump(intent, models / "intent.joblib")
+    (models / "feature_fill.json").write_text(json.dumps(fill, indent=1))
     df.to_parquet(processed / "features.parquet", index=False)
 
     # Sanity check on the held-out period, against true labels (full report: make eval).
     te = df[~tr]
-    proba = model.predict_proba(te[FEATURES])
+    proba = model.predict_proba(model_input(te, fill))
     pred = np.array(CATEGORIES)[proba.argmax(1)]
     print(f"train rows {fit.sum()} (after {cfg['model']['warmup_days']}-day warm-up), test rows {len(te)}")
     print(f"test PR-AUC malicious-vs-legit: {average_precision_score(te['true_label'], 1 - proba[:, 0]):.3f}  "

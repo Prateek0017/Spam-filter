@@ -227,9 +227,23 @@ class Generator:
                  amount=f"${self.rng.integers(2, 95) * 1000 + self.rng.integers(0, 999):,}.00",
                  item=self.pick(T.ITEMS), doc=self.pick(T.DOCS), pct=str(self.pick([50, 60, 70, 80, 90])),
                  country=self.pick(T.COUNTRIES), tenant_domain=tenant.domain, tenant_name=tenant.name,
+                 phone=self.phone(),
                  vendor_name=self.pick(self.w.vendors[tenant.tenant_id]).vendor_name, url="", url2="")
         s.update(extra)
         return s
+
+    def phone(self) -> str:
+        r = self.rng
+        return str(self.pick([
+            f"+1 ({r.integers(201, 989)}) 555-{r.integers(1000, 9999)}", f"+44 7700 {r.integers(100000, 999999)}",
+            f"+91 {r.integers(70000, 99999)} {r.integers(10000, 99999)}", f"+234 {r.integers(700, 909)} "
+            f"{r.integers(100, 999)} {r.integers(1000, 9999)}", f"{r.integers(201, 989)}-555-{r.integers(1000, 9999)}"]))
+
+    def money(self, lo: int, hi: int) -> str:
+        """An amount in one of several currency formats ("$450", "450 USD", "Rs 15,000", "5000 dollars")."""
+        n = int(self.rng.integers(lo, hi))
+        return str(self.pick([f"${n:,}", f"{n} USD", f"USD {n:,}", f"{n:,} dollars", f"Rs {n * 80:,}",
+                              f"EUR {n:,}", f"£{n:,}", f"{n} dollar"]))
 
     def text(self, tpl: str, s: dict[str, str], wrap: bool = True) -> str:
         core = tpl.format(**s)
@@ -293,7 +307,7 @@ class Generator:
                    sender: str) -> tuple[str, list[ThreadMessage] | None]:
         """Attacker-made 'RE:/FW:' subject, sometimes about a plausible topic, sometimes with a forged thread."""
         base = subject if self.rng.random() < 0.5 else self.pick(
-            [*T.INDUSTRY_TOPICS[t.industry.value], f"Invoice {self.rng.integers(10000, 99999)}", "Q3 budget review"])
+            [*T.INDUSTRY_TOPICS[t.industry.value], f"Invoice {self.rng.integers(10000, 99999)}"])
         subj = f"{self.pick(REPLY_PREFIXES)}{base[0].upper()}{base[1:]}"
         forged = self.thread_of(t, to, ts, base, sender, real=False) if self.rng.random() < 0.5 else None
         return subj, forged
@@ -370,7 +384,8 @@ class Generator:
     def hard_negative(self, t: Tenant, to: str, ts: datetime) -> Email:
         kind = self.pick(["exec_urgent_payment", "it_password", "promo", "new_vendor", "vendor_bank_change",
                           "personal_account", "encrypted_zip", "rebrand", "internal_tool", "exec_gift_cards",
-                          "vendor_payment_request", "exec_urgent_payment", "it_password", "vendor_payment_request"])
+                          "vendor_payment_request", "exec_urgent_payment", "it_password", "vendor_payment_request",
+                          "recruiter"])
         ex = t.executives
         sc = f"hard_neg:{kind}"
         if kind == "exec_urgent_payment":
@@ -378,6 +393,11 @@ class Generator:
             s = self.slots(t, to, t.names[sender])
             subj, tpl = self.pick(T.HN_EXEC_URGENT_PAYMENT)
             return self.email(t, to, ts, sender, t.names[sender], subj.format(**s), self.text(tpl, s), "legit", sc)
+        if kind == "recruiter":                                # legit staffing partner: jobs, fees, phone
+            c: Contact = self.pick(self.w.partners[t.tenant_id])
+            s = self.slots(t, ex["HR"], c.name)
+            subj, tpl = self.pick(T.HN_RECRUITER)
+            return self.email(t, ex["HR"], ts, c.addr, c.name, subj.format(**s), self.text(tpl, s), "legit", sc)
         if kind == "vendor_payment_request":                   # real vendor chasing payment
             v: Contact = self.pick(self.w.vendors[t.tenant_id])
             to = self.pick([ex["AP"], ex["CFO"], ex["Controller"]])
@@ -487,7 +507,9 @@ class Generator:
 
     def phishing_campaign(self, k: int) -> list[Email]:
         start = self.campaign_start()
-        kind = self.pick(["brand", "brand", "tenant_it", "compromised_account"])
+        kind = self.pick(["brand", "brand", "tenant_it", "compromised_account", "advance_fee"])
+        if kind == "advance_fee":
+            return self.advance_fee_campaign(start, k)
         if kind == "compromised_account":                       # hard positive: real, trusted sender
             t = self.pick(self.w.tenants)
             c: Contact = self.pick(self.w.vendors[t.tenant_id] + self.w.partners[t.tenant_id])
@@ -541,6 +563,33 @@ class Generator:
             out.append(self.email(t, to, ts, sender, display, subj, self.text(tpl, s, False),
                                   "phishing", f"phishing:{kind}", auth=self.auth(p_pass), thread=thread,
                                   urls=[Url(href=href, anchor_text=self.pick([anchor, "Review", "Sign in"]))]))
+        return out
+
+    def advance_fee_campaign(self, start: datetime, k: int) -> list[Email]:
+        """Fake job offers, prizes and loans that ask for an upfront fee and move the talk to chat."""
+        brand = self.pick(T.AF_BRANDS)
+        fake_name = f"{self.fake.first_name()} {self.fake.last_name()}"
+        if self.rng.random() < 0.7:
+            free = str(self.pick(sorted(FREEMAIL_DOMAINS)))
+            sender = f"{brand.lower()}.{self.pick(['careers', 'hr', 'recruit', 'claims'])}{self.rng.integers(10, 999)}@{free}"
+        else:
+            dom = f"{brand.lower()}-{self.pick(['careers', 'jobs', 'hr-desk', 'awards'])}.{self.pick(['com', 'net', 'org'])}"
+            self.w.register(dom, start - timedelta(days=int(self.rng.integers(2, 40))), None, None,
+                            country=str(self.pick(["NG", "IN", "RU", "VN", "US"])))
+            sender = f"{self.pick(['hr', 'jobs', 'info', 'claims'])}@{dom}"
+        display = self.pick([f"{brand} HR", "Recruitment Team", fake_name, f"{brand} Careers", "Claims Office"])
+        subj_t, tpl = self.pick(T.ADVANCE_FEE)
+        out = []
+        for (t, to), ts in zip(self.targets(k, int(self.rng.integers(1, 5))), self.spread(start, k, 48)):
+            contact = self.pick([f"WhatsApp {self.phone()}", f"Telegram @{brand.lower()}_{self.fake.user_name()}",
+                                 self.phone(), f"WhatsApp: {self.phone()}"])
+            s = self.slots(t, to, display, brand=brand, role=self.pick(T.AF_ROLES), fee=self.money(50, 5000),
+                           salary=f"{self.money(3000, 9000)} per month", prize=self.money(50_000, 2_500_000),
+                           contact=contact, fake_name=fake_name)
+            body = f"{self.pick(T.AF_GREETINGS).format(**s)}\n\n{self.text(tpl, s, wrap=False)}\n\n" \
+                   f"{self.pick(T.AF_SIGNOFFS).format(**s)}"
+            out.append(self.email(t, to, ts, sender, display, subj_t.format(**s), body, "phishing",
+                                  "phishing:advance_fee", auth=self.auth(0.8)))
         return out
 
     def bec_campaign(self, k: int) -> list[Email]:
