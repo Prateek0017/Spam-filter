@@ -101,6 +101,12 @@ HN_EXEC_URGENT_PAYMENT = [
      "the shipment otherwise. Amount {amount}, bank details are in the ERP."),
     ("Wire needed today", "Can you push the {vendor_name} wire through today? Invoice {inv}, {amount}. I approved "
                           "it in the system this morning."),
+    ("Payment today", "Can you push a wire through today? Invoice {inv}, {amount}, for {vendor_name}. I approved "
+                      "it already."),
+    ("Urgent", "Are you in the office? I need you to process a payment to {vendor_name} before end of day. Details "
+               "are in the ERP."),
+    ("Quick question", "Do you have a minute today? I have a quick question about the {topic} and the invoice "
+                       "from {vendor_name}."),
 ]
 HN_IT_PASSWORD = [
     ("Reminder: password expires in 5 days",
@@ -108,6 +114,19 @@ HN_IT_PASSWORD = [
      "IT will never ask for your password by email."),
     ("Action required: enroll in MFA", "All staff must enroll in multi-factor authentication by {day}. Sign in to "
                                        "verify your account and complete enrollment: {url}"),
+    ("Password expires today", "Your {tenant_name} password expires today. Change it in the self-service portal to "
+                               "avoid being locked out: {url}"),
+    ("Mailbox storage almost full", "Your mailbox is at 95% of its storage limit. Archive old messages or request "
+                                    "more storage here: {url}"),
+    ("Your password was reset", "Your password was reset by the service desk as requested. Sign in to verify your "
+                                "account and set a new password: {url}"),
+]
+HN_VENDOR_PAYMENT_REQUEST = [
+    ("Payment reminder: {inv}", "Invoice {inv} for {amount} is now overdue. Please process payment urgently to "
+                                "avoid a hold on your account. Remittance details are on the invoice."),
+    ("Invoice {inv} - please process today", "Could you process invoice {inv} ({amount}) today? We need it cleared "
+                                             "before month end."),
+    ("Invoice {inv}", "Attached is invoice {inv} ({amount}). Payment details are unchanged. Kindly confirm receipt."),
 ]
 HN_PROMO = ("Limited time: 30% off annual plans",
             "For a limited time, upgrade to an annual plan and save 30%. Offer ends {day}. Upgrade now: {url} "

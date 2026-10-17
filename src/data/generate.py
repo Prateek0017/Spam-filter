@@ -44,6 +44,9 @@ BRAND_SENDERS = {"Microsoft 365": "microsoft.com", "Microsoft Security": "micros
                  "DocuSign": "docusign.net", "PayPal": "paypal.com", "DHL Express": "dhl.com"}
 LEGIT_EXTRA_DOMAINS = ["industryweekly.com", "saasmetrics.io", "live.com", "sharepoint.com"]
 PROMO_DOMAIN = "saasmetrics.io"
+# Share of campaigns whose text copies ordinary business mail (no scam phrasing at all), so only
+# sender, relationship and infrastructure signals can tell them apart.
+P_PLAIN = {"phishing": 0.6, "bec": 0.6, "malware": 0.5}
 HOMOGLYPHS = {"o": "0", "l": "1", "i": "l", "m": "rn", "e": "3"}
 
 
@@ -189,6 +192,7 @@ class Generator:
     def __init__(self, world: World) -> None:
         self.w, self.rng, self.fake = world, world.rng, world.fake
         self.n = 0
+        self.progress = 0.0
 
     # ---- helpers ---------------------------------------------------------------------------
     def pick(self, seq):  # type: ignore[no-untyped-def]
@@ -202,7 +206,11 @@ class Generator:
         return d + timedelta(hours=float(np.clip(self.rng.normal(12.5, 2.8), 6, 21)))
 
     def campaign_start(self) -> datetime:
-        return self.w.start + timedelta(hours=float(self.rng.uniform(0, 24 * (self.w.days - 2))))
+        """Campaigns of a class march through the period (`progress` 0->1) with +-2 days of jitter,
+        so every class lands in the time-based test split at roughly its overall rate."""
+        span = 24 * (self.w.days - 2)
+        hours = self.progress * span + self.rng.uniform(-48, 48)
+        return self.w.start + timedelta(hours=float(np.clip(hours, 0, span)))
 
     def slots(self, tenant: Tenant, to: str, sender_name: str, **extra: str) -> dict[str, str]:
         to_name = tenant.names.get(to, "there")
@@ -273,7 +281,7 @@ class Generator:
         t: Tenant = self.pick(self.w.tenants)
         to, ts = self.pick(t.mailboxes), self.business_time()
         r = self.rng.random()
-        if r < 0.08:
+        if r < 0.15:
             return self.hard_negative(t, to, ts)
         if r < 0.45:                                            # internal
             sender = self.pick([m for m in t.mailboxes if m != to])
@@ -327,7 +335,8 @@ class Generator:
 
     def hard_negative(self, t: Tenant, to: str, ts: datetime) -> Email:
         kind = self.pick(["exec_urgent_payment", "it_password", "promo", "new_vendor", "vendor_bank_change",
-                          "personal_account", "encrypted_zip", "rebrand", "internal_tool", "exec_gift_cards"])
+                          "personal_account", "encrypted_zip", "rebrand", "internal_tool", "exec_gift_cards",
+                          "vendor_payment_request", "exec_urgent_payment", "it_password", "vendor_payment_request"])
         ex = t.executives
         sc = f"hard_neg:{kind}"
         if kind == "exec_urgent_payment":
@@ -335,6 +344,13 @@ class Generator:
             s = self.slots(t, to, t.names[sender])
             subj, tpl = self.pick(T.HN_EXEC_URGENT_PAYMENT)
             return self.email(t, to, ts, sender, t.names[sender], subj.format(**s), self.text(tpl, s), "legit", sc)
+        if kind == "vendor_payment_request":                   # real vendor chasing payment
+            v: Contact = self.pick(self.w.vendors[t.tenant_id])
+            to = self.pick([ex["AP"], ex["CFO"], ex["Controller"]])
+            s = self.slots(t, to, v.name, vendor_name=v.vendor_name)
+            subj, tpl = self.pick(T.HN_VENDOR_PAYMENT_REQUEST)
+            return self.email(t, to, ts, v.addr, v.name, subj.format(**s), self.text(tpl, s), "legit", sc,
+                              attachments=[self.attachment(f"{s['inv']}.pdf")])
         if kind == "exec_gift_cards":                          # real exec, same words as the BEC version
             sender = self.pick([ex["CEO"], ex["HR"]])
             s = self.slots(t, to, t.names[sender])
@@ -447,8 +463,12 @@ class Generator:
                                       "phishing", "hard_pos:compromised_account",
                                       urls=[Url(href=href, anchor_text="Open in OneDrive")]))
             return out
+        plain = self.rng.random() < P_PLAIN["phishing"]
         if kind == "brand":
-            display, subj_t, tpl = self.pick(T.PHISH_BRAND)
+            if plain:                                           # word-for-word copy of a real notification
+                display, _, subj_t, tpl = self.pick([n for n in T.LEGIT_NOTIFICATION if n[0] in BRAND_SENDERS])
+            else:
+                display, subj_t, tpl = self.pick(T.PHISH_BRAND)
             brand = BRAND_SENDERS[display]
             dom = self.w.attacker_domain(brand, start)
             anchor = f"https://login.{brand}/"
@@ -456,6 +476,8 @@ class Generator:
         else:
             t = self.pick(self.w.tenants)
             display, subj_t, tpl = self.pick(T.PHISH_TENANT_IT)
+            if plain:
+                subj_t, tpl = self.pick(T.HN_IT_PASSWORD)
             dom = self.w.attacker_domain(t.domain, start)
             anchor = f"https://password.{t.domain}/"
             tgt = [(t, self.pick(t.mailboxes)) for _ in range(k)]
@@ -479,6 +501,7 @@ class Generator:
         ex = t.executives
         kind = self.pick(["gift_cards", "gift_cards", "wire_lookalike", "wire_freemail", "payroll", "direct_spoof",
                           "vendor_invoice", "vendor_invoice", "compromised_vendor"])
+        plain = self.rng.random() < P_PLAIN["bec"]
         out = []
         for ts in self.spread(start, k, 8):
             free = str(self.pick(sorted(FREEMAIL_DOMAINS)))
@@ -488,7 +511,8 @@ class Generator:
                 first, last = display.lower().split(" ", 1)
                 to = self.pick(t.mailboxes[6:]) if kind == "gift_cards" else \
                     self.pick([ex["CFO"], ex["Controller"], ex["AP"]])
-                subj, tpl = self.pick(T.BEC_GIFT_CARDS if kind == "gift_cards" else T.BEC_WIRE)
+                subj, tpl = self.pick(T.HN_EXEC_URGENT_PAYMENT if plain else
+                                      T.BEC_GIFT_CARDS if kind == "gift_cards" else T.BEC_WIRE)
                 if kind in ("gift_cards", "wire_freemail"):
                     sender = f"{first}.{last}.{self.pick(['office', 'ceo', 'exec', 'mobile'])}@{free}"
                     if self.rng.random() < 0.3:                 # display name variant dodges exact matching
@@ -511,7 +535,7 @@ class Generator:
                 v: Contact = self.pick(self.w.vendors[t.tenant_id])
                 display, to = v.name, self.pick([ex["AP"], ex["CFO"], ex["Controller"]])
                 mimic = kind == "compromised_vendor" and self.rng.random() < 0.5
-                subj, tpl = self.pick(T.LEGIT_VENDOR[:2] if mimic else T.BEC_VENDOR_INVOICE)
+                subj, tpl = self.pick(T.HN_VENDOR_PAYMENT_REQUEST if mimic or plain else T.BEC_VENDOR_INVOICE)
                 atts = [self.attachment(self.pick(["new_bank_details.pdf", "bank_details.pdf", "invoice.pdf"]))]
                 if kind == "vendor_invoice":
                     sender = f"{v.addr.split('@')[0]}@{self.w.attacker_domain(v.domain, start)}"
@@ -544,6 +568,8 @@ class Generator:
                                       thread=self.thread_of(to, ts, subj.format(**s))))
             return out
         subj_t, tpl, fname = self.pick(T.MALWARE)
+        if self.rng.random() < P_PLAIN["malware"]:              # ordinary vendor wording, risky attachment
+            subj_t, tpl = self.pick([T.LEGIT_VENDOR[0], T.LEGIT_VENDOR[1], T.LEGIT_VENDOR[3]])
         dom = self.w.attacker_domain("dhl.com" if "DHL" in subj_t else None, start, aged_p=0.3)
         sender, display = f"{self.pick(['billing', 'accounts', 'notice', 'scanner'])}@{dom}", self.fake.company()
         p_pass = float(self.rng.choice([0.8, 0.3]))
@@ -586,6 +612,7 @@ def generate(cfg: dict) -> tuple[list[Tenant], list[Email], ThreatIntel, int]:
         made = 0
         while made < target[cat]:
             lo, hi = CAMPAIGN_SIZE[cat]
+            gen.progress = made / target[cat]
             batch = build(min(int(gen.rng.integers(lo, hi + 1)), target[cat] - made))
             emails += batch
             made += len(batch)
