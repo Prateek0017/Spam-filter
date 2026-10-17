@@ -154,20 +154,29 @@ def text_terms(text_model: dict, n: int = 15) -> pd.DataFrame:
 
 
 # ---- cost ----------------------------------------------------------------------------------
-def cost_estimate(cfg: dict, res: pd.DataFrame, compute_ms: float) -> pd.DataFrame:
+def cost_per_mailbox(cfg: dict, res: pd.DataFrame, compute_ms: float, emails_per_day: float) -> pd.Series:
+    """Monthly $ per mailbox by item at a given inbound volume."""
     c = cfg["cost"]
-    per_month = c["emails_per_mailbox_day"] * 30
+    per_month = emails_per_day * 30
     compute = per_month * compute_ms * c["cpu_overhead"] / 3.6e6 * c["vcpu_hour_usd"]
     lookups = per_month * res["n_lookups"].mean() * (1 - c["lookup_cache_hit"]) * c["lookup_usd"]
     miss = 1 - c["scan_cache_hit"]
     av = per_month * res["n_attachments"].mean() * miss * c["av_usd"]
     sandbox = per_month * res["n_sandbox"].mean() * miss * c["sandbox_usd"]
-    rows = [("Compute (features, rules, models)", compute), ("Reputation / WHOIS lookups", lookups),
-            ("Static AV scan (every attachment)", av), ("Sandbox (risky types, not quarantined)", sandbox)]
-    out = pd.DataFrame(rows, columns=["item", "usd_per_mailbox_month"])
-    total = out["usd_per_mailbox_month"].sum()
-    out.loc[len(out)] = ["**Total**", total]
-    out["share_of_budget"] = out["usd_per_mailbox_month"] / c["budget_per_mailbox_month"]
+    items = pd.Series({"Compute (features, rules, models)": compute, "Reputation / WHOIS lookups": lookups,
+                       "Static AV scan (every attachment)": av, "Sandbox (risky types, not quarantined)": sandbox})
+    items["**Total**"] = items.sum()
+    return items
+
+
+def cost_estimate(cfg: dict, res: pd.DataFrame, compute_ms: float) -> pd.DataFrame:
+    """Base case (assignment volume) and stress test side by side, in $ and share of budget."""
+    c = cfg["cost"]
+    out = pd.DataFrame(index=cost_per_mailbox(cfg, res, compute_ms, 1).index)
+    for name, key in (("base", "emails_per_mailbox_day"), ("stress", "stress_emails_per_mailbox_day")):
+        usd = cost_per_mailbox(cfg, res, compute_ms, c[key])
+        out[f"{name}: $/mailbox/month"] = usd
+        out[f"{name}: share of budget"] = usd / c["budget_per_mailbox_month"]
     return out
 
 
@@ -233,6 +242,12 @@ def main() -> None:
     tiers = df["tier"].value_counts(normalize=True).sort_index()
     scans = df["scan_ms"].dropna()
     cost = cost_estimate(cfg, df, compute_ms)
+    c = cfg["cost"]
+    base_total = float(cost["base: $/mailbox/month"].iloc[-1])
+    stress_total = float(cost["stress: $/mailbox/month"].iloc[-1])
+    headroom = c["budget_per_mailbox_month"] - base_total
+    gray_per_month = c["emails_per_mailbox_day"] * 30 * tiers.get(2, 0)
+    per_gray_email = headroom / gray_per_month if gray_per_month else float("nan")
 
     imp = shap_importance(lgbm, df[FEATURES])
     terms = text_terms(joblib.load(Path(cfg["paths"]["models"]) / "text_model.joblib"))
@@ -305,23 +320,33 @@ The virus scan runs asynchronously; it pulled {len(scans)} delivered emails afte
 f" (median {scans.median():.0f} ms after arrival)" if len(scans) else
 ": everything it detected had already been quarantined by the synchronous path"}.
 
-## Cost vs the ${cfg['cost']['budget_per_mailbox_month']:.2f}/mailbox/month budget
+## Cost vs the ${c['budget_per_mailbox_month']:.2f}/mailbox/month budget
 
-Assumptions (configs/default.yaml): {cfg['cost']['emails_per_mailbox_day']} inbound emails per mailbox per day,
+**Base case** ({c['emails_per_mailbox_day']} inbound emails per mailbox per day, as specified):
+**${base_total:.4f}/mailbox/month ({base_total / c['budget_per_mailbox_month']:.1%} of budget)**.
+**Stress test** ({c['stress_emails_per_mailbox_day']}/day): ${stress_total:.4f} ({stress_total / c['budget_per_mailbox_month']:.1%}),
+{"still within" if stress_total <= c['budget_per_mailbox_month'] else "over"} budget.
+
+**Headroom for a smarter Tier 2:** the base case leaves ${headroom:.2f}/mailbox/month. With
+{tiers.get(2, 0):.1%} of mail in the gray zone that is {gray_per_month:.1f} emails per mailbox per month, so up to
+**${per_gray_email:.2f} per gray-zone email** could go to embeddings or an LLM call and still fit the budget.
+
+Other assumptions (configs/default.yaml):
 ${cfg['cost']['vcpu_hour_usd']}/vCPU-hour with a {cfg['cost']['cpu_overhead']}x overhead on measured compute,
 {cfg['cost']['lookup_cache_hit']:.0%} cache hits on lookups at ${cfg['cost']['lookup_usd']} each, and
 {cfg['cost']['scan_cache_hit']:.0%} hash-cache hits on attachments. Every attachment gets a self-hosted static AV
-scan (${cfg['cost']['av_usd']}); only archives, macro documents and executables / disk images go to the
+scan (${cfg['cost']['av_usd']:.5f}); only archives, macro documents and executables / disk images go to the
 sandbox (${cfg['cost']['sandbox_usd']}), and only when the email was not already quarantined. Measured on this run:
 {df['n_lookups'].mean():.1f} lookups, {df['n_attachments'].mean():.2f} attachments and
 {df['n_sandbox'].mean():.3f} sandbox submissions per email.
 
-{table(cost, {"usd_per_mailbox_month": ".4f", "share_of_budget": ".1%"}, index=False)}
+{table(cost, {k: (".4f" if "$" in k else ".1%") for k in cost.columns})}
 """
     (out_dir / "eval_report.md").write_text(report)
     metrics = {"ablation": ablation.to_dict(orient="index"), "per_class": per_class.to_dict(orient="index"),
                "latency_ms": latency.iloc[0].to_dict(), "tier_share": tiers.to_dict(),
-               "cost_per_mailbox_month": float(cost["usd_per_mailbox_month"].iloc[-1]),
+               "cost_per_mailbox_month": {"base": base_total, "stress": stress_total},
+               "tier2_headroom": {"usd_per_mailbox_month": headroom, "usd_per_gray_zone_email": per_gray_email},
                "shap_top": imp.to_dict(), "text_terms": terms.to_dict(orient="list")}
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=1, default=float))
     print(table(ablation, pct | {"pr_auc": ".3f", "hard_neg_fp": ".0f", "legit_fp": ".0f"}))
@@ -329,7 +354,8 @@ sandbox (${cfg['cost']['sandbox_usd']}), and only when the email was not already
     print(table(per_class, {"precision": ".1%", "recall": ".1%", "f1": ".1%", "pr_auc (LightGBM)": ".3f"}))
     print()
     print(table(latency, {c: ".1f" for c in latency.columns}))
-    print(f"tiers: {tiers.round(3).to_dict()}  cost/mailbox/month: ${cost['usd_per_mailbox_month'].iloc[-1]:.4f}")
+    print(f"tiers: {tiers.round(3).to_dict()}  cost/mailbox/month: base ${base_total:.4f}, "
+          f"stress ${stress_total:.4f}; Tier 2 headroom ${per_gray_email:.2f} per gray-zone email")
     print(f"wrote {out_dir}/eval_report.md")
 
 

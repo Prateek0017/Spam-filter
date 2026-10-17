@@ -55,7 +55,8 @@ model:
 # so they can be challenged; measured compute time and lookup counts come from the eval run.
 cost:
   budget_per_mailbox_month: 0.30
-  emails_per_mailbox_day: 120          # inbound incl. newsletters/notifications
+  emails_per_mailbox_day: 5            # base case: the assignment's volume (30 mailboxes per customer)
+  stress_emails_per_mailbox_day: 120   # stress test: a heavy business inbox (Radicati, see README)
   vcpu_hour_usd: 0.04                  # on-demand ARM vCPU
   cpu_overhead: 3.0                    # MIME parsing, queueing, retries on top of measured compute
   lookup_cache_hit: 0.90               # IP / WHOIS / URL answers cached for hours

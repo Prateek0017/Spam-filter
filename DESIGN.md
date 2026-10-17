@@ -4,10 +4,13 @@ The trade-offs behind bec-guard, in the order they matter. Numbers are from `mak
 
 ## 1. A cascade, not one big model
 
-The budget is about $0.00008 per email and the provider waits at most 5 s. A cascade spends money
-only where it is needed: rules and a small LightGBM decide ~99% of mail in ~10 ms, and only the gray
-zone (1%) gets the extra intent check. The same structure is what would make an embedding model or an
-LLM affordable later: plug it into Tier 2 and it sees 1% of traffic, not 100%.
+The budget is $0.30 per mailbox per month: $0.002 per email at the specified 5 inbound emails per
+mailbox per day, and only $0.00008 per email in a 120/day stress test. The provider waits at most 5 s.
+A cascade spends money only where it is needed: rules and a small LightGBM decide ~99% of mail in
+~10 ms, and only the gray zone (1%) gets the extra intent check. The same structure is what would make
+an embedding model or an LLM affordable later: plug it into Tier 2 and it sees 1% of traffic, not 100%.
+At the base volume the whole pipeline costs $0.008/mailbox/month (2.8% of budget), which leaves
+~$0.20 to spend per gray-zone email.
 
 Cost of the choice: three places to tune instead of one, and Tier 2 currently adds little (one more
 hard positive for three flagged legit emails) because Tier 1 is already confident on this data.
@@ -73,9 +76,11 @@ regularisation (`min_child_samples=40`, `reg_lambda=5`, 150 trees) gave the best
 ## 7. Attachments: async scan, tiered cost
 
 The virus scan is slow (median ~2.5 s, long tail), so the cascade never waits for it: it starts on
-arrival and pulls infected mail after delivery. Scanning every attachment in a sandbox cost
-**$1.00/mailbox/month**. Static AV on every file plus a sandbox only for risky types (archives, macro
-documents, executables) on mail that was not already quarantined brings the total to **$0.20**.
+arrival and pulls infected mail after delivery. Scanning every attachment in a sandbox fits the base
+case ($0.04/mailbox/month at 5 emails/day) but costs **$1.00 in the 120/day stress test**, over
+budget. Static AV on every file plus a sandbox only for risky types (archives, macro documents,
+executables) on mail that was not already quarantined brings the stress test to **$0.20** (base case
+$0.008).
 The mock scanner flags unknown macro documents only by hash, because finance teams send legit
 `.xlsm` files every day; encrypted archives cannot be scanned at all (see Limitations in the README).
 

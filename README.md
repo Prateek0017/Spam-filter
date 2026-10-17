@@ -5,6 +5,9 @@ platform. Cheap rules and a gradient-boosted model handle almost all mail in ~10
 emails get a second look; a slow attachment scan runs in the background. Everything runs locally,
 no API keys, on reproducible synthetic data.
 
+**Cost: $0.008 per mailbox per month (2.8% of the $0.30 budget)** at the specified 5 inbound emails
+per mailbox per day; still within budget ($0.20, 66%) in a 120 emails/day stress test.
+
 ## Key result
 
 Held-out last 12 days (1,963 emails, 388 malicious, true labels). "Detected" means any action other
@@ -44,9 +47,10 @@ make demo                # Streamlit app on http://localhost:8501
 A B2B email provider must classify every inbound email into **DELIVER**, **WARNING_BANNER**,
 **SPAM_FOLDER** or **QUARANTINE**, with reason codes the customer's admin can read.
 
-- **Budget: $0.30 per mailbox per month.** At ~120 inbound emails per mailbox per day that is
-  3,600 emails, so about **$0.00008 per email** for compute, reputation lookups and attachment
-  scanning together. A hosted LLM call on every email is out of budget by orders of magnitude.
+- **Budget: $0.30 per mailbox per month.** At the specified 5 inbound emails per mailbox per day
+  (30 mailboxes per customer) that is 150 emails, so **$0.002 per email** for compute, reputation
+  lookups and attachment scanning together. The design must also survive a heavy inbox: at 120/day
+  the budget shrinks to $0.00008 per email, where a hosted LLM call on every email is out of reach.
 - **Latency: the provider gives up after 5 s** and delivers anyway (fail open). Target p99 < 2 s.
 - **BEC is the expensive failure.** It has no malicious link or file to detect; the signal is
   *who* is asking *what*, compared with how this sender normally behaves.
@@ -171,21 +175,27 @@ Model compute itself is ~1 ms; the slowest external lookup dominates.
 
 ### Cost vs the $0.30/mailbox/month budget
 
-**Estimated $0.20 per mailbox per month (66% of budget).**
+**Base case: $0.0083 per mailbox per month (2.8% of budget)** at the specified 5 inbound emails per
+mailbox per day. The stress test at 120/day costs $0.20 (66%) and still fits.
 
-| Item | $/mailbox/month | Share of budget |
-|---|---|---|
-| Compute (features, rules, models) | 0.0001 | 0.0% |
-| Reputation / WHOIS lookups | 0.0975 | 32.5% |
-| Static AV scan (every attachment) | 0.0226 | 7.5% |
-| Sandbox (risky file types, not already quarantined) | 0.0789 | 26.3% |
-| **Total** | **0.1991** | **66.4%** |
+| Item | Base (5/day) $/mailbox/month | Share of budget | Stress test (120/day) $/mailbox/month | Share of budget |
+|---|---|---|---|---|
+| Compute (features, rules, models) | 0.0000 | 0.0% | 0.0001 | 0.0% |
+| Reputation / WHOIS lookups | 0.0041 | 1.4% | 0.0975 | 32.5% |
+| Static AV scan (every attachment) | 0.0009 | 0.3% | 0.0226 | 7.5% |
+| Sandbox (risky file types, not already quarantined) | 0.0033 | 1.1% | 0.0789 | 26.3% |
+| **Total** | **0.0083** | **2.8%** | **0.1992** | **66.4%** |
+
+**Headroom for a smarter Tier 2:** the base case leaves $0.29/mailbox/month, and only ~1.5 emails per
+mailbox per month reach the gray zone (1.0%), so Tier 2 could spend up to **~$0.20 per gray-zone email**
+on embeddings or an LLM call and still fit the budget.
 
 Assumptions (all in `configs/default.yaml`; measured values come from the eval run):
 
 | Assumption | Value | Source |
 |---|---|---|
-| Inbound emails per mailbox per day | 120 | Conservative. Radicati reports 122 emails *sent and received* per business user per day ([2015 report](https://www.radicati.com/wp/wp-content/uploads/2015/02/Email-Statistics-Report-2015-2019-Executive-Summary.pdf)) and ~78 *received* ([2012 survey](https://www.radicati.com/?p=8785)). |
+| Inbound emails per mailbox per day (base) | 5 | The assignment's specification (30 mailboxes per customer). |
+| Inbound emails per mailbox per day (stress test) | 120 | A heavy business inbox. Radicati reports 122 emails *sent and received* per business user per day ([2015 report](https://www.radicati.com/wp/wp-content/uploads/2015/02/Email-Statistics-Report-2015-2019-Executive-Summary.pdf)) and ~78 *received* ([2012 survey](https://www.radicati.com/?p=8785)), so 120 inbound is pessimistic. |
 | Compute price | $0.04 per vCPU-hour | AWS c7g.large (2 vCPU, on-demand, us-east-1) lists at $0.0725/hour ≈ $0.036/vCPU-hour per third-party trackers ([DoIT](https://www.doit.com/compute/spot/us-east-1/c7g.large), [Holori](https://calculator.holori.com/aws/ec2/c7g.large/us-east-1)); rounded up. |
 | Overhead on measured compute | 3× | Assumption: MIME parsing, queueing and retries are not in the measured ~1 ms. |
 | Lookups per email | 2.7 | Measured: IP + sender WHOIS + URL reputation and WHOIS per unique link. |
@@ -196,9 +206,10 @@ Assumptions (all in `configs/default.yaml`; measured values come from the eval r
 | Static AV scan | $0.00005 per file | Assumption: self-hosted signature scanner, CPU cost only. |
 | Sandbox detonation | $0.002 per file | Assumption: order of magnitude for a commercial sandbox; only archives, macro documents and executables on mail that was not already quarantined (0.022 per email measured). |
 
-The first estimate was **$1.00/mailbox/month**, because it sent every attachment to the sandbox.
-Tiering the scan (cheap AV for everything, sandbox only for risky types on mail that will actually be
-delivered) is the design change that fits the budget. The biggest remaining lever is the lookup cache.
+The first estimate sent every attachment to the sandbox: $0.04 at the base volume, but **$1.00 in the
+stress test**, over budget. Tiering the scan (cheap AV for everything, sandbox only for risky types on
+mail that will actually be delivered) is the design change that keeps a heavy inbox within budget. The
+biggest remaining lever is the lookup cache.
 
 ## Demo
 

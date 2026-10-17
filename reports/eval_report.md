@@ -128,31 +128,40 @@ masked before vectorising; bigrams never cross a sentence boundary).
 
 End-to-end synchronous latency per email: measured compute (features, rules, both models, intent
 check) plus the simulated external lookups, which fan out in parallel (so the slowest one counts).
-Mean compute alone: 0.9 ms. Budget: p99 under 2000 ms; provider
+Mean compute alone: 1.7 ms. Budget: p99 under 2000 ms; provider
 deadline 5000 ms.
 
 |  | p50 | p95 | p99 | max |
 |---|---|---|---|---|
-| end-to-end ms | 9.7 | 22.6 | 28.4 | 66.4 |
+| end-to-end ms | 10.4 | 23.2 | 29.4 | 62.7 |
 
 Decided at Tier 0: 3.4%, Tier 1: 95.7%, Tier 2 (gray zone): 1.0%.
 The virus scan runs asynchronously; it pulled 0 delivered emails after the fact: everything it detected had already been quarantined by the synchronous path.
 
 ## Cost vs the $0.30/mailbox/month budget
 
-Assumptions (configs/default.yaml): 120 inbound emails per mailbox per day,
+**Base case** (5 inbound emails per mailbox per day, as specified):
+**$0.0083/mailbox/month (2.8% of budget)**.
+**Stress test** (120/day): $0.1992 (66.4%),
+still within budget.
+
+**Headroom for a smarter Tier 2:** the base case leaves $0.29/mailbox/month. With
+1.0% of mail in the gray zone that is 1.5 emails per mailbox per month, so up to
+**$0.20 per gray-zone email** could go to embeddings or an LLM call and still fit the budget.
+
+Other assumptions (configs/default.yaml):
 $0.04/vCPU-hour with a 3.0x overhead on measured compute,
 90% cache hits on lookups at $0.0001 each, and
 50% hash-cache hits on attachments. Every attachment gets a self-hosted static AV
-scan ($5e-05); only archives, macro documents and executables / disk images go to the
+scan ($0.00005); only archives, macro documents and executables / disk images go to the
 sandbox ($0.002), and only when the email was not already quarantined. Measured on this run:
 2.7 lookups, 0.25 attachments and
 0.022 sandbox submissions per email.
 
-| item | usd_per_mailbox_month | share_of_budget |
-|---|---|---|
-| Compute (features, rules, models) | 0.0001 | 0.0% |
-| Reputation / WHOIS lookups | 0.0975 | 32.5% |
-| Static AV scan (every attachment) | 0.0226 | 7.5% |
-| Sandbox (risky types, not quarantined) | 0.0789 | 26.3% |
-| **Total** | 0.1991 | 66.4% |
+|  | base: $/mailbox/month | base: share of budget | stress: $/mailbox/month | stress: share of budget |
+|---|---|---|---|---|
+| Compute (features, rules, models) | 0.0000 | 0.0% | 0.0002 | 0.1% |
+| Reputation / WHOIS lookups | 0.0041 | 1.4% | 0.0975 | 32.5% |
+| Static AV scan (every attachment) | 0.0009 | 0.3% | 0.0226 | 7.5% |
+| Sandbox (risky types, not quarantined) | 0.0033 | 1.1% | 0.0789 | 26.3% |
+| **Total** | 0.0083 | 2.8% | 0.1992 | 66.4% |
