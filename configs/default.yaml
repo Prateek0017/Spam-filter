@@ -34,7 +34,7 @@ services:
 cascade:
   sync_deadline_ms: 5000     # provider fail-open deadline
   target_p99_ms: 2000
-  gray_zone: [0.20, 0.80]    # LightGBM P(malicious) in this band goes to the Tier 2 intent check
+  gray_zone: [0.30, 0.80]    # LightGBM P(malicious) in this band goes to the Tier 2 intent check
                              # (lower bound picked on the validation window, see DESIGN.md)
   topic_shift_high: 0.8      # 1 - cosine to the sender's past emails (weak signal: legit median ~0.7)
   intent_min: 0.5            # intent probability that counts as "asks for"

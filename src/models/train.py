@@ -49,8 +49,14 @@ def build_feature_table(cfg: dict) -> tuple[pd.DataFrame, FeatureExtractor, obje
     X_text = vectorizer.transform(texts)
 
     fx = FeatureExtractor(tenants, build_services(cfg), vectorizer)
-    rows = []
+    models = Path(cfg["paths"]["models"])
+    models.mkdir(parents=True, exist_ok=True)
+    rows, snapshot_saved = [], False
     for i, e in enumerate(emails):
+        if not snapshot_saved and e.timestamp >= test_start:
+            # Sender history as of the split: the demo classifies test emails as unseen mail.
+            joblib.dump(fx, models / "feature_extractor.joblib")
+            snapshot_saved = True
         feats, svc_ms = fx.extract(e, X_text[i])
         hits = run_rules(feats)
         rows.append({
@@ -106,12 +112,10 @@ def main() -> None:
     intent = IntentModel(seed).fit(X_text[tr], [t for t, keep in zip(texts, tr) if keep])
 
     models, processed = Path(cfg["paths"]["models"]), Path(cfg["paths"]["processed"])
-    models.mkdir(parents=True, exist_ok=True)
     processed.mkdir(parents=True, exist_ok=True)
     joblib.dump({"vectorizer": fx.vectorizer, "lr": text_lr}, models / "text_model.joblib")
     joblib.dump(model, models / "lgbm.joblib")
     joblib.dump(intent, models / "intent.joblib")
-    joblib.dump(fx, models / "feature_extractor.joblib")     # history as of the end of the stream
     df.to_parquet(processed / "features.parquet", index=False)
 
     # Sanity check on the held-out period, against true labels (full report: make eval).

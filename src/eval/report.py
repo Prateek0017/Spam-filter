@@ -301,8 +301,9 @@ deadline {cfg['cascade']['sync_deadline_ms']} ms.
 {table(latency, {c: ".1f" for c in latency.columns})}
 
 Decided at Tier 0: {tiers.get(0, 0):.1%}, Tier 1: {tiers.get(1, 0):.1%}, Tier 2 (gray zone): {tiers.get(2, 0):.1%}.
-The virus scan runs asynchronously; it pulled {len(scans)} delivered emails after the fact (median
-{scans.median() if len(scans) else float('nan'):.0f} ms after arrival).
+The virus scan runs asynchronously; it pulled {len(scans)} delivered emails after the fact{
+f" (median {scans.median():.0f} ms after arrival)" if len(scans) else
+": everything it detected had already been quarantined by the synchronous path"}.
 
 ## Cost vs the ${cfg['cost']['budget_per_mailbox_month']:.2f}/mailbox/month budget
 

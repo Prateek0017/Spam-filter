@@ -15,19 +15,19 @@ blank for the cascade rows. Hard negatives in test: 247.
 | Text only (TF-IDF + LR) | 53.7% | 87.4% | 66.5% | 0.860 | 92.8% | 81.8% | 85 | 292 |
 | Metadata only (no text features) | 96.5% | 93.0% | 94.8% | 0.985 | 84.1% | 36.4% | 13 | 13 |
 | Full model (LightGBM) | 100.0% | 95.9% | 97.9% | 0.993 | 97.1% | 51.5% | 0 | 0 |
-| Full cascade (blocked) | 99.2% | 94.1% | 96.6% | – | 95.7% | 33.3% | 3 | 3 |
-| Full cascade (blocked or banner) | 98.7% | 95.9% | 97.3% | – | 97.1% | 54.5% | 5 | 5 |
-| Full cascade + async virus scan | 98.7% | 95.9% | 97.3% | – | 97.1% | 54.5% | 5 | 5 |
+| Full cascade (blocked) | 99.7% | 94.1% | 96.8% | – | 95.7% | 33.3% | 1 | 1 |
+| Full cascade (blocked or banner) | 99.2% | 95.9% | 97.5% | – | 97.1% | 54.5% | 3 | 3 |
+| Full cascade + async virus scan | 99.2% | 95.9% | 97.5% | – | 97.1% | 54.5% | 3 | 3 |
 
 ## Per-class results (full cascade + async scan)
 
 |  | precision | recall | f1 | support | pr_auc (LightGBM) |
 |---|---|---|---|---|---|
-| legit | 99.0% | 99.7% | 99.3% | 1575 | 0.999 |
-| spam | 98.6% | 100.0% | 99.3% | 137 | 1.000 |
+| legit | 99.0% | 99.8% | 99.4% | 1575 | 0.999 |
+| spam | 99.3% | 100.0% | 99.6% | 137 | 1.000 |
 | phishing | 100.0% | 91.9% | 95.8% | 111 | 0.995 |
 | bec | 95.7% | 95.7% | 95.7% | 69 | 0.988 |
-| malware | 98.5% | 93.0% | 95.7% | 71 | 0.996 |
+| malware | 100.0% | 93.0% | 96.4% | 71 | 0.996 |
 
 **BEC** is the class that matters most and is hardest: no links, no attachments to scan, often sent from a
 real or freemail account. BEC actions by scenario:
@@ -46,7 +46,7 @@ real or freemail account. BEC actions by scenario:
 
 |  | DELIVER | WARNING_BANNER | SPAM_FOLDER | QUARANTINE |
 |---|---|---|---|---|
-| legit | 1570 | 2 | 1 | 2 |
+| legit | 1572 | 2 | 0 | 1 |
 | spam | 0 | 0 | 137 | 0 |
 | phishing | 9 | 6 | 0 | 96 |
 | bec | 2 | 1 | 0 | 66 |
@@ -59,18 +59,18 @@ real or freemail account. BEC actions by scenario:
 Hard positives are attacks from real, trusted accounts or with copied legit wording; hard negatives
 are legit mail that looks risky. Recall on hard positives (any action but DELIVER):
 **54.5%**. Hard negatives
-blocked: **3**,
+blocked: **1**,
 bannered: **2**.
 
 |  | n | blocked | banner | delivered |
 |---|---|---|---|---|
-| hard_neg:encrypted_zip | 16 | 1 | 0 | 15 |
+| hard_neg:encrypted_zip | 16 | 0 | 0 | 16 |
 | hard_neg:exec_gift_cards | 17 | 0 | 0 | 17 |
 | hard_neg:exec_urgent_payment | 39 | 0 | 0 | 39 |
 | hard_neg:internal_tool | 21 | 0 | 0 | 21 |
 | hard_neg:it_password | 35 | 0 | 0 | 35 |
 | hard_neg:new_vendor | 17 | 0 | 0 | 17 |
-| hard_neg:personal_account | 18 | 1 | 0 | 17 |
+| hard_neg:personal_account | 18 | 0 | 0 | 18 |
 | hard_neg:promo | 12 | 0 | 0 | 12 |
 | hard_neg:rebrand | 20 | 0 | 0 | 20 |
 | hard_neg:vendor_bank_change | 15 | 0 | 0 | 15 |
@@ -133,11 +133,10 @@ deadline 5000 ms.
 
 |  | p50 | p95 | p99 | max |
 |---|---|---|---|---|
-| end-to-end ms | 9.7 | 22.6 | 28.3 | 72.3 |
+| end-to-end ms | 9.7 | 22.6 | 28.4 | 66.4 |
 
-Decided at Tier 0: 3.4%, Tier 1: 95.5%, Tier 2 (gray zone): 1.1%.
-The virus scan runs asynchronously; it pulled 0 delivered emails after the fact (median
-nan ms after arrival).
+Decided at Tier 0: 3.4%, Tier 1: 95.7%, Tier 2 (gray zone): 1.0%.
+The virus scan runs asynchronously; it pulled 0 delivered emails after the fact: everything it detected had already been quarantined by the synchronous path.
 
 ## Cost vs the $0.30/mailbox/month budget
 
@@ -148,12 +147,12 @@ $0.04/vCPU-hour with a 3.0x overhead on measured compute,
 scan ($5e-05); only archives, macro documents and executables / disk images go to the
 sandbox ($0.002), and only when the email was not already quarantined. Measured on this run:
 2.7 lookups, 0.25 attachments and
-0.021 sandbox submissions per email.
+0.022 sandbox submissions per email.
 
 | item | usd_per_mailbox_month | share_of_budget |
 |---|---|---|
 | Compute (features, rules, models) | 0.0001 | 0.0% |
 | Reputation / WHOIS lookups | 0.0975 | 32.5% |
 | Static AV scan (every attachment) | 0.0226 | 7.5% |
-| Sandbox (risky types, not quarantined) | 0.0770 | 25.7% |
-| **Total** | 0.1973 | 65.8% |
+| Sandbox (risky types, not quarantined) | 0.0789 | 26.3% |
+| **Total** | 0.1991 | 66.4% |
