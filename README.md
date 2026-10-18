@@ -187,7 +187,7 @@ a thin real-world check (several overlap generator scenarios).
 
 The main miss is BEC from a hijacked real vendor account (6 of 7 delivered in seed 42). It passes
 authentication and sits in a real thread, and because the vendor is established, Tier 2 can at most
-banner it. That is a deliberate trade-off, so a real vendor's payment request is never quarantined. Next I would flag any email that
+banner it. That is a deliberate trade-off, so a real vendor's payment request is never quarantined by Tier 2. Next I would flag any email that
 changes bank details, with out-of-band verification, and track each sender's usual writing style and
 sending IPs.
 
