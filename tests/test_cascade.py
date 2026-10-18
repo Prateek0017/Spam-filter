@@ -1,6 +1,7 @@
 """Phase 4: cascade routing (tiers, gray zone, intent check, async scan) with stub models."""
 from __future__ import annotations
 
+import copy
 from collections import Counter
 from datetime import datetime
 
@@ -9,7 +10,7 @@ import pytest
 
 from src.common.config import load_config
 from src.data.generate import generate
-from src.data.schema import Action, Attachment, Email
+from src.data.schema import Action, Attachment, AuthResults, Email, Url
 from src.features.extract import FeatureExtractor, email_text, merge_stream
 from src.models.text import make_vectorizer
 from src.pipeline.cascade import Cascade
@@ -46,14 +47,24 @@ def world():
     return cfg, tenants, emails, intel, sent
 
 
-def make_cascade(world, proba: list[float], **intents: float) -> Cascade:
-    cfg, tenants, emails, intel, sent = world
+def make_cascade(world, proba: list[float], cfg: dict | None = None, simulate_latency: bool = False,
+                 **intents: float) -> Cascade:
+    cfg0, tenants, emails, intel, sent = world
+    cfg = cfg or cfg0
     vec = make_vectorizer().fit([email_text(e) for e in emails])
-    fx = FeatureExtractor(tenants, build_services(cfg, intel=intel), vec)
+    fx = FeatureExtractor(tenants, build_services(cfg, intel=intel, simulate_latency=simulate_latency), vec)
     cas = Cascade(cfg, fx, {"vectorizer": vec, "lr": StubLR()}, StubLGBM(proba), StubIntent(**intents))
-    for item in merge_stream(emails, sent):
-        cas.observe(item)
+    for item in merge_stream(emails, sent):          # warm-up history: legit-labelled mail counts as delivered
+        cas.observe(item, delivered=isinstance(item, Email) and item.category == "legit")
     return cas
+
+
+def slow_cfg(world, p50_ms: float, timeout_ms: float, deadline_ms: float) -> dict:
+    cfg = copy.deepcopy(world[0])
+    for name in ("ip_reputation", "whois", "url_reputation"):
+        cfg["services"][name] = {"p50_ms": p50_ms, "sigma": 0.0, "timeout_ms": timeout_ms}
+    cfg["cascade"]["sync_deadline_ms"] = deadline_ms
+    return cfg
 
 
 def internal_email(world, **kw) -> Email:
@@ -122,3 +133,48 @@ def test_intent_keyword_layer() -> None:
                  "see you at 12:30 in room 4"):
         assert not asks_off_channel(text)
     assert not asks_for_money("Can you review the Q3 deck before Friday?")
+
+
+def test_quarantined_mail_never_earns_trust(world) -> None:
+    """Regression: a stranger's payment request is quarantined; observing it must not make the
+    stranger 'established', so the second identical request is still quarantine-eligible."""
+    gray = [0.5, 0.05, 0.05, 0.35, 0.05]
+    cas = make_cascade(world, gray, payment=0.9)
+    first = internal_email(world).model_copy(update={"from_addr": "ap.billing.desk@outlook.com",
+                                                     "from_display": "Billing Desk"})
+    v1 = cas.classify(first)
+    assert v1.action == Action.QUARANTINE
+    cas.observe(first, delivered=v1.action == Action.DELIVER)
+    for _ in range(3):                                      # even repeated quarantined attempts earn nothing
+        v2 = cas.classify(first.model_copy(update={"message_id": "<t2@x>"}))
+        assert v2.action == Action.QUARANTINE and "ESTABLISHED_SENDER" not in v2.reasons
+        cas.observe(first, delivered=v2.action == Action.DELIVER)
+
+
+def test_slow_services_fail_open_to_deliver(world) -> None:
+    """Lookups slower than the sync deadline: the verdict is DELIVER (fail open), decided at the deadline."""
+    cfg = slow_cfg(world, p50_ms=400, timeout_ms=2000, deadline_ms=100)
+    cas = make_cascade(world, [0.05, 0.02, 0.02, 0.9, 0.01], cfg=cfg, simulate_latency=True)
+    v = cas.classify(internal_email(world))
+    assert v.action == Action.DELIVER and v.tier == -1 and "DEADLINE_EXCEEDED" in v.reasons
+    assert v.latency_ms < 300                              # did not wait for the 400 ms lookups
+
+
+def test_many_urls_stay_under_the_deadline(world) -> None:
+    """40 link domains = 82 lookups of 20 ms each: sequential would take ~1.6 s; in parallel it fits in 1 s."""
+    cfg = slow_cfg(world, p50_ms=20, timeout_ms=100, deadline_ms=1000)
+    cas = make_cascade(world, [0.95, 0.01, 0.01, 0.02, 0.01], cfg=cfg, simulate_latency=True)
+    urls = [Url(href=f"https://site{i}.example-{i}.com/x", anchor_text="x") for i in range(40)]
+    v = cas.classify(internal_email(world, urls=urls))
+    assert v.tier != -1 and v.latency_ms < 1000
+
+
+def test_spoofed_sender_inherits_no_trust(world) -> None:
+    """A message claiming to be from an established colleague but failing DMARC is treated as a stranger."""
+    gray = [0.5, 0.05, 0.05, 0.35, 0.05]
+    cas = make_cascade(world, gray, payment=0.9)
+    real = internal_email(world).model_copy(update={"reply_to": "billing@elsewhere-pay.com"})
+    assert cas.classify(real).action == Action.WARNING_BANNER          # genuine colleague: banner only
+    spoof = real.model_copy(update={"auth": AuthResults(spf="fail", dkim="none", dmarc="fail")})
+    v = cas.classify(spoof)
+    assert v.action == Action.QUARANTINE and "ESTABLISHED_SENDER" not in v.reasons

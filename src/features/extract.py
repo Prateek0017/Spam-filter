@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -87,12 +89,13 @@ def mask(text: str, e: Email) -> str:
 
 
 def model_input(rows: pd.DataFrame | list[dict[str, float]], fill: dict[str, float]) -> pd.DataFrame:
-    """Model input: FEATURES in order, missing values replaced by neutral training medians.
+    """Model input: FEATURES in order, missing values replaced by training medians.
 
     A feature is missing when there is nothing to measure (no earlier mail for topic shift, no links)
     or a lookup timed out. Left as NaN, LightGBM learns that "missing" itself means attack, because
-    new senders are mostly attackers in training. Filling with the median makes it neutral; "new
-    sender" is still carried explicitly by first_time_sender. Rules see the raw values (NaN never fires).
+    new senders are mostly attackers in training. The median supplies a typical value instead (not a
+    guaranteed neutral contribution); "new sender" is carried explicitly by first_time_sender. Rules
+    see the raw values (NaN never fires).
     """
     X = rows[FEATURES] if isinstance(rows, pd.DataFrame) else pd.DataFrame(rows, columns=FEATURES)
     return X.fillna(fill)
@@ -123,42 +126,67 @@ class FeatureExtractor:
         self.sender_msgs: Counter[tuple[str, str]] = Counter()           # (tenant, sender) -> #msgs
         self.pair_msgs: Counter[tuple[str, str]] = Counter()             # (mailbox, sender) -> #msgs received
         self.sent_msgs: Counter[tuple[str, str]] = Counter()             # (mailbox, recipient) -> #msgs sent
+        self.trusted_msgs: Counter[tuple[str, str]] = Counter()          # (tenant, sender) -> #msgs DELIVERED
         self.domain_times: dict[str, list[datetime]] = defaultdict(list)  # sender domain -> timestamps
         self.sender_text: dict[tuple[str, str], csr_matrix] = {}         # (tenant, sender) -> sum of tf-idf
 
     def __getstate__(self) -> dict[str, Any]:
         state = self.__dict__.copy()
         state["services"] = None            # thread pools don't pickle; reattach with .services = ...
+        state["_executor"] = None
         return state
 
+    def _pool(self) -> ThreadPoolExecutor:
+        if getattr(self, "_executor", None) is None:
+            self._executor = ThreadPoolExecutor(max_workers=32, thread_name_prefix="lookup")
+        return self._executor
+
+    def _lookups(self, e: Email, dom: str, url_doms: list[str],
+                 deadline: float | None) -> tuple[dict[tuple[str, str], Any], bool]:
+        """Run WHOIS / IP / URL lookups concurrently. Each mock call has its own timeout; all of them
+        share the sync deadline (a perf_counter time). Returns (finished results, deadline hit)."""
+        svc = self.services
+        calls = {("whois", dom): lambda: svc.whois.lookup(dom, as_of=e.timestamp),
+                 ("ip", e.sender_ip): lambda: svc.ip.lookup(e.sender_ip)}
+        for d in url_doms:
+            calls[("url", d)] = lambda d=d: svc.url.lookup(d)
+            calls.setdefault(("whois", d), lambda d=d: svc.whois.lookup(d, as_of=e.timestamp))
+        futures = {k: self._pool().submit(fn) for k, fn in calls.items()}
+        timeout = None if deadline is None else max(0.0, deadline - time.perf_counter())
+        done, pending = wait(futures.values(), timeout=timeout)
+        for f in pending:
+            f.cancel()
+        return {k: f.result() for k, f in futures.items() if f in done}, bool(pending)
+
     # ---- extraction ----------------------------------------------------------------------
-    def extract(self, e: Email, x_text: csr_matrix | None = None) -> tuple[dict[str, float], float]:
-        """Return (features, service latency in ms). Lookups fan out in parallel, so latency = max."""
-        svc, tenant = self.services, self.tenants[e.tenant_id]
+    def extract(self, e: Email, x_text: csr_matrix | None = None,
+                deadline: float | None = None) -> tuple[dict[str, float], bool]:
+        """Return (features, deadline hit). Lookups that did not finish count as missing (NaN)."""
+        tenant = self.tenants[e.tenant_id]
         sender = e.from_addr.lower()
         dom = registrable_domain(address_domain(sender))
         key = (e.tenant_id, sender)
         f: dict[str, float] = {}
-        latencies: list[float] = []
+        url_doms = sorted({registrable_domain(url_host(u.href)) for u in e.urls})
+        res, expired = self._lookups(e, dom, url_doms, deadline)
+        value = lambda k: res[k].value if k in res else None  # noqa: E731
 
         auth = [e.auth.spf, e.auth.dkim, e.auth.dmarc]
         f["auth_fail_count"] = sum(a != "pass" for a in auth)
         f["dmarc_fail"] = float(e.auth.dmarc == "fail")
         f["is_internal"] = float(dom == tenant.domain)
         f["is_freemail"] = float(is_freemail(dom))
-        who = svc.whois.lookup(dom, as_of=e.timestamp)
-        latencies.append(who.latency_ms)
-        f["sender_domain_age_days"] = who.value.age_days if who.value else np.nan
+        who = value(("whois", dom))
+        f["sender_domain_age_days"] = who.age_days if who else np.nan
         f["lookalike_score"] = lookalike_score(dom, self.protected[e.tenant_id])
         f["display_name_mismatch"] = float(e.from_display.strip().lower() in self.employee_names[e.tenant_id]
                                            and dom != tenant.domain)
         f["reply_to_mismatch"] = float(bool(e.reply_to)
                                        and registrable_domain(address_domain(e.reply_to or "")) != dom)
 
-        ip = svc.ip.lookup(e.sender_ip)
-        latencies.append(ip.latency_ms)
-        f["ip_score"] = ip.value.score if ip.value else np.nan
-        f["ip_geo_risk"] = ip.value.geo_risk if ip.value else np.nan
+        ip = value(("ip", e.sender_ip))
+        f["ip_score"] = ip.score if ip else np.nan
+        f["ip_geo_risk"] = ip.geo_risk if ip else np.nan
 
         f["first_time_sender"] = float(self.sender_msgs[key] == 0)
         f["sender_prior_msgs"] = math.log1p(self.sender_msgs[key])
@@ -169,18 +197,15 @@ class FeatureExtractor:
                                      if e.timestamp - VOLUME_WINDOW <= t < e.timestamp)
         f["topic_shift"] = self._topic_shift(key, x_text if x_text is not None else self._vec(e))
 
-        url_doms = sorted({registrable_domain(url_host(u.href)) for u in e.urls})
         bad, ages = 0.0, []
         for d in url_doms:
-            r = svc.url.lookup(d)
-            w = svc.whois.lookup(d, as_of=e.timestamp)
-            latencies += [r.latency_ms, w.latency_ms]
-            if r.value and r.value.verdict in ("malicious", "suspicious"):
-                bad = max(bad, 1.0 if r.value.verdict == "malicious" else 0.5)
-            if r.value and r.value.is_shortener:
+            r, w = value(("url", d)), value(("whois", d))
+            if r and r.verdict in ("malicious", "suspicious"):
+                bad = max(bad, 1.0 if r.verdict == "malicious" else 0.5)
+            if r and r.is_shortener:
                 bad = max(bad, 0.5)
-            if w.value and d not in URL_SHORTENERS:
-                ages.append(w.value.age_days)
+            if w and d not in URL_SHORTENERS:
+                ages.append(w.age_days)
         f["n_urls"] = len(e.urls)
         f["url_bad_verdict"] = bad
         f["min_url_domain_age_days"] = min(ages) if ages else np.nan
@@ -199,7 +224,7 @@ class FeatureExtractor:
         for name, pat in KEYWORDS.items():
             f[name] = float(len(pat.findall(body)))
         f.update(self._subject_features(e, exchanges))
-        return f, max(latencies)
+        return f, expired
 
     def _subject_features(self, e: Email, exchanges: int) -> dict[str, float]:
         """Subject-line signals. Features only: no rule ever acts on the subject alone."""
@@ -233,9 +258,18 @@ class FeatureExtractor:
         return 1.0 - float(x.multiply(hist).sum()) / norm if norm else np.nan
 
     # ---- history -------------------------------------------------------------------------
-    def update(self, e: Email, x_text: csr_matrix | None = None) -> None:
+    def trust(self, e: Email) -> tuple[int, int]:
+        """(messages this mailbox SENT to the sender, earlier messages from the sender that were DELIVERED)."""
+        sender = e.from_addr.lower()
+        return self.sent_msgs[(e.to_addr.lower(), sender)], self.trusted_msgs[(e.tenant_id, sender)]
+
+    def update(self, e: Email, x_text: csr_matrix | None = None, delivered: bool = False) -> None:
+        """Add a received email to history. Only `delivered` mail (not quarantined, not spam-foldered,
+        not pulled later) earns trust; every received email still counts for volume and topic history."""
         sender = e.from_addr.lower()
         key = (e.tenant_id, sender)
+        if delivered:
+            self.trusted_msgs[key] += 1
         self.sender_msgs[key] += 1
         self.pair_msgs[(e.to_addr.lower(), sender)] += 1
         times = self.domain_times[registrable_domain(address_domain(sender))]

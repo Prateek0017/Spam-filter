@@ -57,7 +57,7 @@ REASONS = {r.code: r.description for r in RULES} | {
     "ASKS_PAYMENT": "Asks for a payment, wire or bank-detail change",
     "ASKS_GIFT_CARD": "Asks for gift cards",
     "ASKS_CREDENTIAL": "Asks the reader to sign in or share a password",
-    "NEW_SENDER": "First email from this sender to this company",
+    "NEW_SENDER": "No trusted history: nothing from this sender was delivered, and nobody here wrote to them",
     "TOPIC_SHIFT": "Very different from what this sender usually writes",
     "FREEMAIL_SENDER": "New sender on a free webmail domain",
     "ESTABLISHED_SENDER": "Known correspondent: warned with a banner instead of quarantined",
@@ -96,8 +96,9 @@ def load() -> tuple:
 
 
 def shap_chart(explainer, verdict: Verdict, fill: dict[str, float], top: int = 10) -> plt.Figure:
-    """Contributions toward 'malicious' (minus the legit-class SHAP value) for this one email.
-    Missing values are explained as the model saw them (neutral fill), but labelled n/a."""
+    """Per-feature SHAP contributions to LightGBM's legit-class raw score (multiclass log-odds), sign
+    flipped so that a positive bar lowers P(legit), i.e. raises P(malicious) = 1 - P(legit).
+    Missing values are explained as the model saw them (median fill), but labelled n/a."""
     X = model_input([verdict.features], fill)
     sv = explainer.shap_values(X)
     legit = (sv[0] if isinstance(sv, list) else np.asarray(sv)[..., 0])
@@ -113,7 +114,8 @@ def shap_chart(explainer, verdict: Verdict, fill: dict[str, float], top: int = 1
         ax.spines[s].set_visible(False)
     ax.spines["bottom"].set_color(GRID)
     ax.tick_params(colors=INK_2, labelsize=9, length=0)
-    ax.set_xlabel("<- toward legit      SHAP contribution      toward attack ->", color=INK_2, fontsize=9)
+    ax.set_xlabel("<- raises legit-class score      SHAP (log-odds)      lowers it: toward attack ->",
+                  color=INK_2, fontsize=9)
     fig.tight_layout()
     return fig
 
@@ -163,7 +165,7 @@ def show_verdict(cascade: Cascade, explainer, email: Email) -> None:
     getattr(st, kind)(f"**{v.action.value}**: {label}")
     m = st.columns(4)
     m[0].metric("Predicted class", v.category)
-    m[1].metric("P(malicious)", f"{v.score:.2f}")
+    m[1].metric("P(malicious)", "not run" if np.isnan(v.score) else f"{v.score:.2f}")
     m[2].metric("Decided at", f"Tier {v.tier}")
     m[3].metric("Latency", f"{v.latency_ms:.0f} ms")
     st.caption("Tier 0 = rules, Tier 1 = text score + LightGBM, Tier 2 = intent check for gray-zone scores "
@@ -182,7 +184,14 @@ def show_verdict(cascade: Cascade, explainer, email: Email) -> None:
             st.dataframe(pd.DataFrame({"probability": v.intents}).style.format("{:.2f}"), width="content")
     with right:
         st.subheader("Why the model scored it this way")
-        st.pyplot(shap_chart(explainer, v, cascade.fill), clear_figure=True)
+        if v.tier in (0, -1):
+            st.info("Decided before the model ran (Tier 0 rule block or fail-open at the deadline): "
+                    "the reason codes are the explanation.")
+        else:
+            st.pyplot(shap_chart(explainer, v, cascade.fill), clear_figure=True)
+            st.caption("Bars are SHAP contributions to LightGBM's legit-class raw score (multiclass log-odds), "
+                       "sign flipped: a bar to the right lowers P(legit) and so raises P(malicious) = 1 − P(legit). "
+                       "They add up in log-odds, not in probability.")
 
     if v.scans:
         with st.spinner("Attachment scan running asynchronously (the decision above did not wait for it)..."):

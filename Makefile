@@ -2,7 +2,7 @@
 PY      ?= .venv/bin/python
 CONFIG  ?= configs/default.yaml
 
-.PHONY: setup data train eval multiseed demo test all clean
+.PHONY: setup data train eval validate multiseed demo test all clean
 
 setup:            ## Create Python 3.11 venv and install deps (requires uv; macOS also: brew install libomp)
 	uv venv --python 3.11 .venv
@@ -14,9 +14,12 @@ data:             ## Generate synthetic tenants, threat intel and ~10k labelled 
 train:            ## Build point-in-time features, train text model + LightGBM
 	$(PY) -m src.models.train --config $(CONFIG)
 
-eval:             ## Metrics, SHAP, ablation, latency + cost reports, OOD check -> reports/
+eval:             ## Metrics, SHAP, ablation, latency + cost, challenge set -> reports/
 	$(PY) -m src.eval.report --config $(CONFIG)
-	$(PY) -m src.eval.ood --config $(CONFIG)
+	$(PY) -m src.eval.challenge --config $(CONFIG)
+
+validate:         ## Model selection on the last 7 training days, then refit -> reports/validation.md
+	$(PY) -m src.eval.validate --config $(CONFIG)
 
 multiseed:        ## Whole pipeline over 5 seeds -> reports/multiseed.md (mean ± std, ~3 minutes)
 	$(PY) -m src.eval.multiseed --config $(CONFIG)

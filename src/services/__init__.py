@@ -22,8 +22,11 @@ class Services:
 
 
 def build_services(cfg: dict[str, Any], intel: ThreatIntel | None = None,
-                   simulate_latency: bool = False) -> Services:
-    """Construct all mocks from the `services:` config block and the intel snapshot."""
+                   simulate_latency: bool = False, simulate_scan_latency: bool | None = None) -> Services:
+    """Construct all mocks from the `services:` config block and the intel snapshot.
+
+    simulate_scan_latency defaults to simulate_latency; batch evaluation keeps the slow async scan
+    virtual while the sync lookups really sleep."""
     if intel is None:
         intel = ThreatIntel.load(Path(cfg["paths"]["raw"]) / "intel.json")
     sc = cfg["services"]
@@ -32,7 +35,8 @@ def build_services(cfg: dict[str, Any], intel: ThreatIntel | None = None,
         ip=IPReputationService(intel, mk("ip_reputation"), simulate_latency),
         whois=WhoisService(intel, mk("whois"), simulate_latency),
         url=UrlReputationService(intel, mk("url_reputation"), simulate_latency),
-        virus=VirusScanService(intel, mk("virus_scan"), simulate_latency),
+        virus=VirusScanService(intel, mk("virus_scan"),
+                               simulate_latency if simulate_scan_latency is None else simulate_scan_latency),
         intel=intel,
     )
 

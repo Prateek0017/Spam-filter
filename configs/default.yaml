@@ -38,17 +38,20 @@ cascade:
                              # (lower bound picked on the validation window, see DESIGN.md)
   topic_shift_high: 0.8      # 1 - cosine to the sender's past emails (weak signal: legit median ~0.7)
   intent_min: 0.5            # intent probability that counts as "asks for"
-  established_min_msgs: 3    # Tier 2 never quarantines a sender who exchanged mail with this mailbox
-                             # or sent the company this many earlier emails (banner instead)
+  banner_budget: 0.01        # make validate: at most 1% of legit mail flagged when picking the gray zone
+  established_min_msgs: 3    # Tier 2 never quarantines a sender this mailbox has written to, or whose
+                             # earlier mail was DELIVERED this many times (banner instead)
 
 model:
-  warmup_days: 7             # history-only: senders all look "new" at the start of the stream
-  lgbm:                      # picked on a validation window (last 7 train days), never on test
+  warmup_days: 7             # excluded from LightGBM training (every sender looks "new" there); the
+                             # text and intent models do train on these days
+  validation_days: 7         # make validate: last N training days for model selection
+  lgbm:                      # chosen by `make validate` (last 7 train days), never on test
     n_estimators: 150
     learning_rate: 0.05
     num_leaves: 15
-    min_child_samples: 40
-    reg_lambda: 5.0
+    min_child_samples: 20
+    reg_lambda: 0.0
     subsample: 0.8
     subsample_freq: 1
     colsample_bytree: 0.8
@@ -58,7 +61,7 @@ model:
 cost:
   budget_per_mailbox_month: 0.30
   emails_per_mailbox_day: 5            # base case: the assignment's volume (30 mailboxes per customer)
-  stress_emails_per_mailbox_day: 120   # stress test: a heavy business inbox (Radicati, see README)
+  projection_emails_per_mailbox_day: 120  # cost projection: a heavy business inbox (Radicati, see README)
   vcpu_hour_usd: 0.04                  # on-demand ARM vCPU
   cpu_overhead: 3.0                    # MIME parsing, queueing, retries on top of measured compute
   lookup_cache_hit: 0.90               # IP / WHOIS / URL answers cached for hours

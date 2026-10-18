@@ -1,8 +1,9 @@
 """Build point-in-time features, train the text model and LightGBM, save everything.
 
 Steps
-  1. Time split: train = before (end - test_days), test = after. The first `warmup_days`
-     only build sender history (every sender is "new" then) and are not trained on.
+  1. Time split: train = before (end - test_days), test = after. The first `warmup_days` are
+     excluded from LightGBM training (every sender looks "new" there); the text and intent
+     models do train on them.
   2. Fit TF-IDF on train text only.
   3. Walk the whole stream in time order: extract features, then update history.
   4. Text LR: out-of-fold scores on train, full-train fit scores test -> `text_score`.
@@ -41,13 +42,17 @@ def split_dates(cfg: dict) -> tuple[datetime, datetime]:
     return start + timedelta(days=cfg["model"]["warmup_days"]), start + timedelta(days=d["days"] - d["test_days"])
 
 
-def build_feature_table(cfg: dict) -> tuple[pd.DataFrame, FeatureExtractor, object, list[str]]:
+def build_feature_table(cfg: dict, fit_end: datetime | None = None,
+                        save_snapshot: bool = True) -> tuple[pd.DataFrame, FeatureExtractor, object, list[str]]:
+    """Point-in-time feature table for the whole stream. The TF-IDF vocabulary is fitted on emails
+    before `fit_end` (default: the test split); `make validate` passes the validation cutoff instead."""
     raw = Path(cfg["paths"]["raw"])
     emails, tenants = load_emails(raw / "emails.jsonl"), load_tenants(raw / "tenants.json")
     sent = load_sent(raw / "sent.jsonl")
     _, test_start = split_dates(cfg)
+    fit_end = fit_end or test_start
     texts = [email_text(e) for e in emails]
-    vectorizer = make_vectorizer().fit([t for t, e in zip(texts, emails) if e.timestamp < test_start])
+    vectorizer = make_vectorizer().fit([t for t, e in zip(texts, emails) if e.timestamp < fit_end])
     X_text = vectorizer.transform(texts)
 
     fx = FeatureExtractor(tenants, build_services(cfg), vectorizer)
@@ -60,20 +65,23 @@ def build_feature_table(cfg: dict) -> tuple[pd.DataFrame, FeatureExtractor, obje
             fx.record_sent(item)
             continue
         e, i = item, index[id(item)]
-        if not snapshot_saved and e.timestamp >= test_start:
+        if save_snapshot and not snapshot_saved and e.timestamp >= test_start:
             # Sender history as of the split: the demo classifies test emails as unseen mail.
             joblib.dump(fx, models / "feature_extractor.joblib")
             snapshot_saved = True
-        feats, svc_ms = fx.extract(e, X_text[i])
+        feats, _ = fx.extract(e, X_text[i])
+        sent_to, delivered_before = fx.trust(e)
         hits = run_rules(feats)
         rows.append({
             "message_id": e.message_id, "tenant_id": e.tenant_id, "timestamp": e.timestamp,
             "category": e.category, "true_category": e.true_category, "label": e.label,
             "true_label": int(e.true_category != "legit"), "scenario": e.scenario,
-            **feats, "svc_latency_ms": svc_ms,
+            **feats, "sent_to_sender": sent_to, "delivered_prior": delivered_before,
             "rules": "|".join(r.code for r in hits), "rule_block": blocks(hits, feats),
         })
-        fx.update(e, X_text[i])
+        # Offline there is no verdict yet: mail whose (observed, possibly noisy) label is legit stands in
+        # for "delivered and not reported". Only that mail earns trust.
+        fx.update(e, X_text[i], delivered=e.category == "legit")
     df = pd.DataFrame(rows)
     df["split"] = np.where(df["timestamp"] >= test_start, "test", "train")
     return df, fx, X_text, texts
@@ -112,7 +120,7 @@ def run(cfg: dict) -> None:
 
     y = df["category"].map({c: i for i, c in enumerate(CATEGORIES)}).to_numpy()
     model = LGBMClassifier(objective="multiclass", **cfg["model"]["lgbm"], random_state=seed, verbose=-1)
-    fill = {f: float(v) for f, v in df.loc[fit, FEATURES].median().items()}   # neutral value for missing
+    fill = {f: float(v) for f, v in df.loc[fit, FEATURES].median().items()}   # typical value for missing
     model.fit(model_input(df.loc[fit], fill), y[fit])
 
     intent = IntentModel(seed).fit(X_text[tr], [t for t, keep in zip(texts, tr) if keep])
