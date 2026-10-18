@@ -8,11 +8,11 @@ Validation window: 2026-07-12 to 2026-07-19 (last 7 training days, 1204 emails,
 
 | n_estimators | num_leaves | min_child_samples | reg_lambda | val PR-AUC |
 |---|---|---|---|---|
-| 300 | 15 | 20 | 0.0 | 0.9562 |
-| 150 | 15 | 20 | 0.0 | 0.9585 |
-| 300 | 7 | 40 | 0.0 | 0.9579 |
-| 300 | 15 | 40 | 5.0 | 0.9560 |
-| 150 | 15 | 40 | 5.0 | 0.9564 |
+| 300 | 15 | 20 | 0.0 | 0.9546 |
+| 150 | 15 | 20 | 0.0 | 0.9604 |
+| 300 | 7 | 40 | 0.0 | 0.9577 |
+| 300 | 15 | 40 | 5.0 | 0.9540 |
+| 150 | 15 | 40 | 5.0 | 0.9520 |
 
 Chosen: n_estimators=150, num_leaves=15, min_child_samples=20, reg_lambda=0.0 (best validation PR-AUC).
 **Config matches.**
@@ -24,9 +24,9 @@ Rule: the most hard positives caught while flagging at most 1% of legit mail
 
 |  | sent to Tier 2 | recall | hard-positive recall | legit flagged | legit quarantined / spam |
 |---|---|---|---|---|---|
-| 0.3 | 0.3% | 93.9% | 77% | 8 | 7 |
-| 0.2 | 0.7% | 94.3% | 82% | 12 | 7 |
-| 0.1 | 2.0% | 94.9% | 91% | 22 | 8 |
-| 0.05 | 3.3% | 95.3% | 95% | 33 | 8 |
+| 0.3 | 0.7% | 94.3% | 82% | 10 | 6 |
+| 0.2 | 0.7% | 94.3% | 82% | 11 | 6 |
+| 0.1 | 1.7% | 94.9% | 91% | 18 | 7 |
+| 0.05 | 3.1% | 94.9% | 91% | 31 | 7 |
 
-Chosen: **0.3**. **Config matches.**
+Chosen: **0.3**. No bound meets the budget, so the most conservative candidate is used (it flags the fewest legit emails). **Config matches.**

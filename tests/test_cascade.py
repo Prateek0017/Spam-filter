@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import time
 from collections import Counter
 from datetime import datetime
 
@@ -178,3 +179,59 @@ def test_spoofed_sender_inherits_no_trust(world) -> None:
     spoof = real.model_copy(update={"auth": AuthResults(spf="fail", dkim="none", dmarc="fail")})
     v = cas.classify(spoof)
     assert v.action == Action.QUARANTINE and "ESTABLISHED_SENDER" not in v.reasons
+
+
+def test_quarantined_lookalike_keeps_tier0_block(world) -> None:
+    """Regression: a quarantined lookalike sender that tries again is still blocked at Tier 0."""
+    _, tenants, _, _, _ = world
+    cas = make_cascade(world, [0.95, 0.01, 0.01, 0.02, 0.01])
+    lookalike = internal_email(world).model_copy(
+        update={"from_addr": f"it@{tenants[0].domain.split('.')[0]}-secure.com", "from_display": "IT"})
+    for attempt in range(3):
+        v = cas.classify(lookalike.model_copy(update={"message_id": f"<l{attempt}@x>"}))
+        assert (v.action, v.tier) == (Action.QUARANTINE, 0), attempt
+        cas.observe(lookalike, delivered=v.action == Action.DELIVER)
+
+
+def test_one_clean_delivery_does_not_establish(world) -> None:
+    """Regression: one benign delivered email does not make a stranger established (3 are needed)."""
+    gray = [0.5, 0.05, 0.05, 0.35, 0.05]
+    cas = make_cascade(world, gray, payment=0.9)
+    stranger = internal_email(world).model_copy(update={"from_addr": "j.doe.consulting@outlook.com",
+                                                        "from_display": "J Doe"})
+    cas.observe(stranger, delivered=True)                  # one benign email reached the inbox
+    v = cas.classify(stranger.model_copy(update={"message_id": "<pay@x>"}))
+    assert v.action == Action.QUARANTINE and "NEW_SENDER" in v.reasons
+    assert "ESTABLISHED_SENDER" not in v.reasons
+
+
+def test_dmarc_failing_deliveries_earn_no_trust(world) -> None:
+    """Regression: three delivered emails that failed DMARC leave the sender not established."""
+    cas = make_cascade(world, [0.5, 0.05, 0.05, 0.35, 0.05], payment=0.9)
+    fail = AuthResults(spf="fail", dkim="none", dmarc="fail")
+    sender = internal_email(world).model_copy(update={"from_addr": "accounts@partner-billing.com",
+                                                      "from_display": "Accounts", "auth": fail})
+    for i in range(3):
+        cas.observe(sender.model_copy(update={"message_id": f"<d{i}@x>"}), delivered=True)
+    passing = sender.model_copy(update={"auth": AuthResults(), "message_id": "<p@x>"})
+    assert not cas.fx.is_established(passing)
+    assert cas.classify(passing).action == Action.QUARANTINE
+
+
+class SlowLGBM(StubLGBM):
+    def predict_proba(self, X):  # type: ignore[no-untyped-def]
+        time.sleep(1.0)
+        return self.proba
+
+
+def test_slow_model_returns_deliver_at_the_deadline(world) -> None:
+    """A model that takes 1 s cannot hold the provider past a 200 ms deadline: DELIVER, on time."""
+    cfg = copy.deepcopy(world[0])
+    cfg["cascade"]["sync_deadline_ms"] = 200
+    cas = make_cascade(world, [0.05, 0.02, 0.02, 0.9, 0.01], cfg=cfg)
+    cas.lgbm = SlowLGBM([0.05, 0.02, 0.02, 0.9, 0.01])
+    t0 = time.perf_counter()
+    v = cas.classify(internal_email(world))
+    elapsed = (time.perf_counter() - t0) * 1000
+    assert v.action == Action.DELIVER and v.tier == -1 and "DEADLINE_EXCEEDED" in v.reasons
+    assert elapsed < 400                                  # returned at the deadline, not after the model

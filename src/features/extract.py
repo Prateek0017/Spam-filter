@@ -39,7 +39,7 @@ FEATURES: list[str] = [
     # infrastructure
     "ip_score", "ip_geo_risk",
     # relationship history (point-in-time)
-    "first_time_sender", "sender_prior_msgs", "prior_exchanges", "domain_volume_24h", "topic_shift",
+    "untrusted_sender", "sender_prior_msgs", "prior_exchanges", "domain_volume_24h", "topic_shift",
     # content: URLs and attachments
     "n_urls", "url_bad_verdict", "min_url_domain_age_days", "anchor_mismatch", "offdomain_urls",
     "risky_attachments",
@@ -94,7 +94,7 @@ def model_input(rows: pd.DataFrame | list[dict[str, float]], fill: dict[str, flo
     A feature is missing when there is nothing to measure (no earlier mail for topic shift, no links)
     or a lookup timed out. Left as NaN, LightGBM learns that "missing" itself means attack, because
     new senders are mostly attackers in training. The median supplies a typical value instead (not a
-    guaranteed neutral contribution); "new sender" is carried explicitly by first_time_sender. Rules
+    guaranteed neutral contribution); "new sender" is carried explicitly by untrusted_sender. Rules
     see the raw values (NaN never fires).
     """
     X = rows[FEATURES] if isinstance(rows, pd.DataFrame) else pd.DataFrame(rows, columns=FEATURES)
@@ -116,12 +116,14 @@ def lookalike_score(domain: str, protected: set[str]) -> float:
 
 
 class FeatureExtractor:
-    def __init__(self, tenants: list[Tenant], services: Services, vectorizer: TfidfVectorizer) -> None:
+    def __init__(self, tenants: list[Tenant], services: Services, vectorizer: TfidfVectorizer,
+                 established_min_msgs: int = 3) -> None:
         self.tenants = {t.tenant_id: t for t in tenants}
         self.protected = {t.tenant_id: {t.domain, *t.vendors, *BRAND_DOMAINS} for t in tenants}
         self.employee_names = {t.tenant_id: {n.lower() for n in t.names.values()} for t in tenants}
         self.services = services
         self.vectorizer = vectorizer
+        self.established_min_msgs = established_min_msgs
         # History state
         self.sender_msgs: Counter[tuple[str, str]] = Counter()           # (tenant, sender) -> #msgs
         self.pair_msgs: Counter[tuple[str, str]] = Counter()             # (mailbox, sender) -> #msgs received
@@ -188,7 +190,7 @@ class FeatureExtractor:
         f["ip_score"] = ip.score if ip else np.nan
         f["ip_geo_risk"] = ip.geo_risk if ip else np.nan
 
-        f["first_time_sender"] = float(self.sender_msgs[key] == 0)
+        f["untrusted_sender"] = float(not self.is_established(e))
         f["sender_prior_msgs"] = math.log1p(self.sender_msgs[key])
         pair = (e.to_addr.lower(), sender)
         exchanges = self.pair_msgs[pair] + self.sent_msgs[pair]       # history store only, never e.thread
@@ -263,12 +265,23 @@ class FeatureExtractor:
         sender = e.from_addr.lower()
         return self.sent_msgs[(e.to_addr.lower(), sender)], self.trusted_msgs[(e.tenant_id, sender)]
 
+    def is_established(self, e: Email) -> bool:
+        """THE trust definition, shared by Tier 0 (block rules), the `untrusted_sender` model feature and
+        Tier 2: this mailbox has written to the sender, or at least `established_min_msgs` earlier emails
+        from the sender were delivered with no banner. A message failing DMARC is never established:
+        its From address may be spoofed."""
+        if e.auth.dmarc == "fail":
+            return False
+        sent, delivered = self.trust(e)
+        return sent > 0 or delivered >= self.established_min_msgs
+
     def update(self, e: Email, x_text: csr_matrix | None = None, delivered: bool = False) -> None:
-        """Add a received email to history. Only `delivered` mail (not quarantined, not spam-foldered,
-        not pulled later) earns trust; every received email still counts for volume and topic history."""
+        """Add a received email to history. Only `delivered` mail (no banner, not quarantined, not
+        spam-foldered, not pulled later) that passed DMARC earns trust; every received email still counts
+        for volume and topic history."""
         sender = e.from_addr.lower()
         key = (e.tenant_id, sender)
-        if delivered:
+        if delivered and e.auth.dmarc != "fail":
             self.trusted_msgs[key] += 1
         self.sender_msgs[key] += 1
         self.pair_msgs[(e.to_addr.lower(), sender)] += 1

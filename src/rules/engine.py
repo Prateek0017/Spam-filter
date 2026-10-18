@@ -1,7 +1,7 @@
 """Tier 0: cheap, explainable rules over the extracted signals.
 
 Every rule that fires adds a reason code. `block` rules are precise enough to quarantine on
-their own, but only for senders with no history: an established correspondent is never
+their own, but only for senders who are not established: an established correspondent is never
 hard-blocked by a rule (sister companies have lookalike domains), the model decides instead.
 `flag` rules only add a reason code. Severities were chosen from per-rule precision on the
 training period (printed by `make train`).
@@ -45,6 +45,7 @@ def run_rules(features: dict[str, float]) -> list[Rule]:
     return [r for r in RULES if r.fires(features)]
 
 
-def blocks(hits: list[Rule], features: dict[str, float]) -> bool:
-    """True if Tier 0 alone should quarantine: a block rule fired on a first-time sender."""
-    return features["first_time_sender"] == 1 and any(r.severity == "block" for r in hits)
+def blocks(hits: list[Rule], established: bool) -> bool:
+    """True if Tier 0 alone should quarantine: a block rule fired and the sender is not established
+    (FeatureExtractor.is_established, the one shared trust definition)."""
+    return not established and any(r.severity == "block" for r in hits)

@@ -50,10 +50,8 @@ def gray_zone_sweep(cfg: dict, va: pd.DataFrame, score: np.ndarray, intents: lis
     c = cfg["cascade"]
     hi = c["gray_zone"][1]
     asks = np.array([any(d[k] >= c["intent_min"] for k in RISKY_INTENTS) for d in intents])
-    spoofable = (va["dmarc_fail"] == 1).to_numpy()            # failing DMARC inherits no trust
-    untrusted = spoofable | ((va["sent_to_sender"] == 0) & (va["delivered_prior"] == 0)).to_numpy()
-    established = ~spoofable & ((va["sent_to_sender"] > 0)
-                                | (va["delivered_prior"] >= c["established_min_msgs"])).to_numpy()
+    established = va["established"].to_numpy(dtype=bool)     # FeatureExtractor.is_established at the time
+    untrusted = ~established
     off = (untrusted | (va["topic_shift"] >= c["topic_shift_high"]).to_numpy()
            | (va["reply_to_mismatch"] == 1).to_numpy() | (va["display_name_mismatch"] == 1).to_numpy())
     tier0 = va["rule_block"].to_numpy(dtype=bool)
@@ -108,7 +106,9 @@ def run(cfg: dict) -> dict:
     budget = cfg["cascade"]["banner_budget"] * int((va["label"] == 0).sum())
     ok = gz[gz["legit flagged"] <= budget]
     chosen_lo = float(ok.sort_values(["hard-positive recall", "legit flagged"], ascending=[False, True]).index[0]) \
-        if len(ok) else LOWER_BOUNDS[0]
+        if len(ok) else LOWER_BOUNDS[0]                     # nothing fits the budget: most conservative bound
+    lo_note = "" if len(ok) else (" No bound meets the budget, so the most conservative candidate is used "
+                                  "(it flags the fewest legit emails).")
 
     cfg_params = cfg["model"]["lgbm"]
     params_match = all(np.isclose(float(cfg_params[k]), float(best_params[k])) for k in best_params)
@@ -134,7 +134,7 @@ Rule: the most hard positives caught while flagging at most {cfg['cascade']['ban
 {table(gz, {"sent to Tier 2": ".1%", "recall": ".1%", "hard-positive recall": ".0%", "legit flagged": ".0f",
             "legit quarantined / spam": ".0f"})}
 
-Chosen: **{chosen_lo}**. **Config {"matches" if lo_match else "DIFFERS"}.**
+Chosen: **{chosen_lo}**.{lo_note} **Config {"matches" if lo_match else "DIFFERS"}.**
 """
     out = Path(cfg["paths"]["reports"])
     out.mkdir(parents=True, exist_ok=True)

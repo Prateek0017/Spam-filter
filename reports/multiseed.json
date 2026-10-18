@@ -11,11 +11,11 @@
    "ablation": {
     "Rules only (Tier 0 block)": {
      "precision": 1.0,
-     "recall": 0.14560439560439561,
-     "f1": 0.2541966426858513,
+     "recall": 0.3076923076923077,
+     "f1": 0.47058823529411764,
      "pr_auc": 0.556696458213659,
-     "bec_recall_blocked": 0.33783783783783783,
-     "bec_recall": 0.33783783783783783,
+     "bec_recall_blocked": 0.3918918918918919,
+     "bec_recall": 0.3918918918918919,
      "hard_pos_recall": 0.0,
      "hard_neg_fp": 0.0,
      "legit_fp": 0.0
@@ -32,67 +32,67 @@
      "legit_fp": 157.0
     },
     "Metadata only (no text or subject features)": {
-     "precision": 0.9461756373937678,
-     "recall": 0.9175824175824175,
-     "f1": 0.9316596931659693,
-     "pr_auc": 0.9819332525064909,
-     "bec_recall_blocked": 0.8378378378378378,
-     "bec_recall": 0.8378378378378378,
+     "precision": 0.9490084985835694,
+     "recall": 0.9203296703296703,
+     "f1": 0.9344490934449093,
+     "pr_auc": 0.9811582353845199,
+     "bec_recall_blocked": 0.8513513513513513,
+     "bec_recall": 0.8513513513513513,
      "hard_pos_recall": 0.16666666666666666,
-     "hard_neg_fp": 19.0,
-     "legit_fp": 19.0
+     "hard_neg_fp": 18.0,
+     "legit_fp": 18.0
     },
     "Full model (LightGBM, no subject features)": {
-     "precision": 0.9803370786516854,
-     "recall": 0.9587912087912088,
-     "f1": 0.9694444444444444,
-     "pr_auc": 0.9909952251551934,
-     "bec_recall_blocked": 0.8648648648648649,
-     "bec_recall": 0.8648648648648649,
-     "hard_pos_recall": 0.3333333333333333,
-     "hard_neg_fp": 7.0,
-     "legit_fp": 7.0
-    },
-    "Full model + subject features": {
      "precision": 0.9830985915492958,
      "recall": 0.9587912087912088,
      "f1": 0.9707927677329624,
-     "pr_auc": 0.9918264122235423,
+     "pr_auc": 0.9915222495842494,
      "bec_recall_blocked": 0.8648648648648649,
      "bec_recall": 0.8648648648648649,
-     "hard_pos_recall": 0.3888888888888889,
+     "hard_pos_recall": 0.3333333333333333,
+     "hard_neg_fp": 6.0,
+     "legit_fp": 6.0
+    },
+    "Full model + subject features": {
+     "precision": 0.9830508474576272,
+     "recall": 0.9560439560439561,
+     "f1": 0.9693593314763231,
+     "pr_auc": 0.992331703092727,
+     "bec_recall_blocked": 0.8648648648648649,
+     "bec_recall": 0.8648648648648649,
+     "hard_pos_recall": 0.3333333333333333,
      "hard_neg_fp": 6.0,
      "legit_fp": 6.0
     },
     "Cascade without intent check": {
-     "precision": 0.975,
-     "recall": 0.9642857142857143,
-     "f1": 0.9696132596685083,
+     "precision": 0.9750692520775623,
+     "recall": 0.967032967032967,
+     "f1": 0.9710344827586207,
      "pr_auc": NaN,
-     "bec_recall_blocked": 0.8108108108108109,
-     "bec_recall": 0.8783783783783784,
+     "bec_recall_blocked": 0.8243243243243243,
+     "bec_recall": 0.8918918918918919,
      "hard_pos_recall": 0.4444444444444444,
      "hard_neg_fp": 9.0,
      "legit_fp": 9.0
     },
     "Full cascade": {
-     "precision": 0.975,
-     "recall": 0.9642857142857143,
-     "f1": 0.9696132596685083,
+     "precision": 0.9750692520775623,
+     "recall": 0.967032967032967,
+     "f1": 0.9710344827586207,
      "pr_auc": NaN,
      "bec_recall_blocked": 0.8378378378378378,
-     "bec_recall": 0.8783783783783784,
+     "bec_recall": 0.8918918918918919,
      "hard_pos_recall": 0.4444444444444444,
      "hard_neg_fp": 9.0,
      "legit_fp": 9.0
     },
     "Full cascade + async virus scan": {
-     "precision": 0.975,
-     "recall": 0.9642857142857143,
-     "f1": 0.9696132596685083,
+     "precision": 0.9750692520775623,
+     "recall": 0.967032967032967,
+     "f1": 0.9710344827586207,
      "pr_auc": NaN,
      "bec_recall_blocked": 0.8378378378378378,
-     "bec_recall": 0.8783783783783784,
+     "bec_recall": 0.8918918918918919,
      "hard_pos_recall": 0.4444444444444444,
      "hard_neg_fp": 9.0,
      "legit_fp": 9.0
@@ -100,11 +100,11 @@
    },
    "per_class": {
     "legit": {
-     "precision": 0.9917617237008872,
+     "precision": 0.9923906150919467,
      "recall": 0.9942820838627701,
-     "f1": 0.993020304568528,
+     "f1": 0.9933354490637892,
      "support": 1574,
-     "pr_auc (LightGBM)": 0.9990443234450397
+     "pr_auc (LightGBM)": 0.9993154047407684
     },
     "spam": {
      "precision": 0.9745762711864406,
@@ -118,62 +118,62 @@
      "recall": 0.9519230769230769,
      "f1": 0.9753694581280788,
      "support": 104,
-     "pr_auc (LightGBM)": 0.9994369918877796
+     "pr_auc (LightGBM)": 0.9993398667906546
     },
     "bec": {
-     "precision": 0.9420289855072463,
-     "recall": 0.8783783783783784,
-     "f1": 0.9090909090909091,
+     "precision": 0.9428571428571428,
+     "recall": 0.8918918918918919,
+     "f1": 0.9166666666666666,
      "support": 74,
-     "pr_auc (LightGBM)": 0.9611251254082187
+     "pr_auc (LightGBM)": 0.9608975816489801
     },
     "malware": {
      "precision": 0.9324324324324325,
      "recall": 0.971830985915493,
      "f1": 0.9517241379310345,
      "support": 71,
-     "pr_auc (LightGBM)": 0.9967531271574197
+     "pr_auc (LightGBM)": 0.9960222852103546
     }
    },
    "latency_ms": {
-    "p50": 14.887145953252912,
-    "p95": 31.56307056196964,
-    "p99": 40.68580452352762,
-    "max": 55.77866698149592
+    "p50": 14.618625515140593,
+    "p95": 30.21482502808794,
+    "p99": 38.04626969737001,
+    "max": 55.03758403938264
    },
    "tier_share": {
-    "0": 0.027347781217750257,
-    "1": 0.9597523219814241,
-    "2": 0.012899896800825593
+    "0": 0.05779153766769866,
+    "1": 0.9303405572755418,
+    "2": 0.011867905056759546
    },
    "cost_per_mailbox_month": {
-    "base_implemented": 0.11872362681888546,
-    "base_proposed": 0.008765035487616098,
-    "projection_implemented": 2.8493670436532508,
-    "projection_proposed": 0.21036085170278634
+    "base_implemented": 0.11872275330753354,
+    "base_proposed": 0.008686762595459236,
+    "projection_implemented": 2.849346079380805,
+    "projection_proposed": 0.20848230229102166
    },
    "fail_open": 0,
-   "cpu_ms": 4.787283281733702,
+   "cpu_ms": 4.612581011351904,
    "tier2_headroom": {
-    "usd_per_mailbox_month": 0.18127637318111453,
-    "usd_per_gray_zone_email": 0.09368362965999999
+    "usd_per_mailbox_month": 0.18127724669246645,
+    "usd_per_gray_zone_email": 0.10183052292463766
    },
    "shap_top": {
-    "text_score": 1.861196807923271,
-    "risky_attachments": 0.9952645887997531,
-    "sender_domain_age_days": 0.9443967634526962,
-    "payment_kw": 0.8590758403344828,
-    "subject_body_sim": 0.7119072216129112,
-    "topic_shift": 0.7106938301057586,
-    "min_url_domain_age_days": 0.7005191912870908,
-    "lookalike_score": 0.652073774992078,
-    "ip_score": 0.5774211579672559,
-    "n_urls": 0.5355846465866423,
-    "domain_volume_24h": 0.4789455492114761,
-    "url_bad_verdict": 0.45774706194530285,
-    "subject_caps_ratio": 0.3662301306591121,
-    "sender_prior_msgs": 0.3351641677845339,
-    "prior_exchanges": 0.2894604901771563
+    "text_score": 1.7822528936133415,
+    "risky_attachments": 0.9969542929619177,
+    "sender_domain_age_days": 0.9252822130910782,
+    "payment_kw": 0.8704901997833018,
+    "min_url_domain_age_days": 0.7203264265251732,
+    "subject_body_sim": 0.7145869380705748,
+    "topic_shift": 0.6725818529765099,
+    "lookalike_score": 0.6061270327959877,
+    "ip_score": 0.5442244004979195,
+    "domain_volume_24h": 0.5381294533044085,
+    "n_urls": 0.48365965160256463,
+    "sender_prior_msgs": 0.4540460197556505,
+    "url_bad_verdict": 0.4370085753894306,
+    "subject_caps_ratio": 0.33921610654789985,
+    "prior_exchanges": 0.299567570627437
    },
    "text_terms": {
     "toward attack": [
@@ -234,11 +234,11 @@
    "ablation": {
     "Rules only (Tier 0 block)": {
      "precision": 1.0,
-     "recall": 0.1111111111111111,
-     "f1": 0.2,
+     "recall": 0.24494949494949494,
+     "f1": 0.3935091277890467,
      "pr_auc": 0.602510213768002,
-     "bec_recall_blocked": 0.3055555555555556,
-     "bec_recall": 0.3055555555555556,
+     "bec_recall_blocked": 0.3194444444444444,
+     "bec_recall": 0.3194444444444444,
      "hard_pos_recall": 0.0,
      "hard_neg_fp": 0.0,
      "legit_fp": 0.0
@@ -255,148 +255,148 @@
      "legit_fp": 214.0
     },
     "Metadata only (no text or subject features)": {
-     "precision": 0.9375,
-     "recall": 0.9090909090909091,
-     "f1": 0.9230769230769231,
-     "pr_auc": 0.9780767863431394,
-     "bec_recall_blocked": 0.8611111111111112,
-     "bec_recall": 0.8611111111111112,
+     "precision": 0.9381443298969072,
+     "recall": 0.9191919191919192,
+     "f1": 0.9285714285714286,
+     "pr_auc": 0.9792708680166137,
+     "bec_recall_blocked": 0.875,
+     "bec_recall": 0.875,
      "hard_pos_recall": 0.4,
-     "hard_neg_fp": 23.0,
+     "hard_neg_fp": 24.0,
      "legit_fp": 24.0
     },
     "Full model (LightGBM, no subject features)": {
-     "precision": 0.9844559585492227,
-     "recall": 0.9595959595959596,
-     "f1": 0.9718670076726342,
-     "pr_auc": 0.9963062433198311,
+     "precision": 0.9871134020618557,
+     "recall": 0.9671717171717171,
+     "f1": 0.9770408163265306,
+     "pr_auc": 0.996296107499183,
      "bec_recall_blocked": 0.9305555555555556,
      "bec_recall": 0.9305555555555556,
      "hard_pos_recall": 0.6857142857142857,
-     "hard_neg_fp": 6.0,
-     "legit_fp": 6.0
+     "hard_neg_fp": 5.0,
+     "legit_fp": 5.0
     },
     "Full model + subject features": {
-     "precision": 0.9895833333333334,
-     "recall": 0.9595959595959596,
-     "f1": 0.9743589743589743,
-     "pr_auc": 0.9960885709059929,
-     "bec_recall_blocked": 0.9027777777777778,
-     "bec_recall": 0.9027777777777778,
+     "precision": 0.9869791666666666,
+     "recall": 0.9570707070707071,
+     "f1": 0.9717948717948718,
+     "pr_auc": 0.995661525724509,
+     "bec_recall_blocked": 0.8888888888888888,
+     "bec_recall": 0.8888888888888888,
      "hard_pos_recall": 0.6571428571428571,
-     "hard_neg_fp": 4.0,
-     "legit_fp": 4.0
+     "hard_neg_fp": 5.0,
+     "legit_fp": 5.0
     },
     "Cascade without intent check": {
-     "precision": 0.9772727272727273,
-     "recall": 0.9772727272727273,
-     "f1": 0.9772727272727273,
+     "precision": 0.9746192893401016,
+     "recall": 0.9696969696969697,
+     "f1": 0.9721518987341772,
      "pr_auc": NaN,
      "bec_recall_blocked": 0.8611111111111112,
      "bec_recall": 0.9444444444444444,
-     "hard_pos_recall": 0.7714285714285715,
+     "hard_pos_recall": 0.6857142857142857,
      "hard_neg_fp": 9.0,
-     "legit_fp": 9.0
+     "legit_fp": 10.0
     },
     "Full cascade": {
-     "precision": 0.9772727272727273,
-     "recall": 0.9772727272727273,
-     "f1": 0.9772727272727273,
+     "precision": 0.9746192893401016,
+     "recall": 0.9696969696969697,
+     "f1": 0.9721518987341772,
      "pr_auc": NaN,
      "bec_recall_blocked": 0.9166666666666666,
      "bec_recall": 0.9444444444444444,
-     "hard_pos_recall": 0.7714285714285715,
+     "hard_pos_recall": 0.6857142857142857,
      "hard_neg_fp": 9.0,
-     "legit_fp": 9.0
+     "legit_fp": 10.0
     },
     "Full cascade + async virus scan": {
-     "precision": 0.9772727272727273,
-     "recall": 0.9772727272727273,
-     "f1": 0.9772727272727273,
+     "precision": 0.9746192893401016,
+     "recall": 0.9696969696969697,
+     "f1": 0.9721518987341772,
      "pr_auc": NaN,
      "bec_recall_blocked": 0.9166666666666666,
      "bec_recall": 0.9444444444444444,
-     "hard_pos_recall": 0.7714285714285715,
+     "hard_pos_recall": 0.6857142857142857,
      "hard_neg_fp": 9.0,
-     "legit_fp": 9.0
+     "legit_fp": 10.0
     }
    },
    "per_class": {
     "legit": {
-     "precision": 0.9941176470588236,
-     "recall": 0.9941176470588236,
-     "f1": 0.9941176470588236,
+     "precision": 0.9921671018276762,
+     "recall": 0.9934640522875817,
+     "f1": 0.992815153494448,
      "support": 1530,
-     "pr_auc (LightGBM)": 0.9986295828458721
+     "pr_auc (LightGBM)": 0.9984249817436297
     },
     "spam": {
-     "precision": 0.9935483870967742,
+     "precision": 0.9871794871794872,
      "recall": 1.0,
-     "f1": 0.9967637540453075,
+     "f1": 0.9935483870967742,
      "support": 154,
      "pr_auc (LightGBM)": 0.9999999999999998
     },
     "phishing": {
-     "precision": 0.98,
-     "recall": 0.9514563106796117,
-     "f1": 0.9655172413793104,
+     "precision": 0.9795918367346939,
+     "recall": 0.9320388349514563,
+     "f1": 0.9552238805970149,
      "support": 103,
-     "pr_auc (LightGBM)": 0.9981989934152383
+     "pr_auc (LightGBM)": 0.9969542275388532
     },
     "bec": {
      "precision": 0.9305555555555556,
      "recall": 0.9305555555555556,
      "f1": 0.9305555555555556,
      "support": 72,
-     "pr_auc (LightGBM)": 0.9816014463322791
+     "pr_auc (LightGBM)": 0.9801176022067036
     },
     "malware": {
-     "precision": 0.9565217391304348,
-     "recall": 0.9850746268656716,
-     "f1": 0.9705882352941176,
+     "precision": 0.9558823529411765,
+     "recall": 0.9701492537313433,
+     "f1": 0.9629629629629629,
      "support": 67,
-     "pr_auc (LightGBM)": 0.993208487956406
+     "pr_auc (LightGBM)": 0.9931684870542717
     }
    },
    "latency_ms": {
-    "p50": 14.713979500811547,
-    "p95": 29.41652075969614,
-    "p99": 45.372416730970144,
-    "max": 75.01487503759563
+    "p50": 16.157312493305653,
+    "p95": 33.88783347327262,
+    "p99": 48.924083705060184,
+    "max": 76.96824998129159
    },
    "tier_share": {
-    "0": 0.02284527518172378,
-    "1": 0.9652128764278297,
-    "2": 0.011941848390446522
+    "0": 0.05036344755970924,
+    "1": 0.9402907580477674,
+    "2": 0.009345794392523364
    },
    "cost_per_mailbox_month": {
-    "base_implemented": 0.11493069647455867,
-    "base_proposed": 0.008541677782969888,
-    "projection_implemented": 2.758336715389408,
-    "projection_proposed": 0.20500026679127728
+    "base_implemented": 0.11493276496884734,
+    "base_proposed": 0.008543746277258568,
+    "projection_implemented": 2.7583863592523366,
+    "projection_proposed": 0.20504991065420558
    },
    "fail_open": 0,
-   "cpu_ms": 4.83088369678097,
+   "cpu_ms": 5.244582554516951,
    "tier2_headroom": {
-    "usd_per_mailbox_month": 0.18506930352544132,
-    "usd_per_gray_zone_email": 0.10331695031594201
+    "usd_per_mailbox_month": 0.18506723503115263,
+    "usd_per_gray_zone_email": 0.13201462765555555
    },
    "shap_top": {
-    "text_score": 1.5558124042272785,
-    "sender_domain_age_days": 1.058253436651852,
-    "payment_kw": 0.9243376076378301,
-    "risky_attachments": 0.8998932097540511,
-    "topic_shift": 0.6963853095264542,
-    "ip_score": 0.6670840639203621,
-    "min_url_domain_age_days": 0.6446018557572566,
-    "lookalike_score": 0.6417237952579284,
-    "subject_body_sim": 0.5390412601083825,
-    "url_bad_verdict": 0.48995552068448367,
-    "domain_volume_24h": 0.4689273572789199,
-    "prior_exchanges": 0.45604170064458766,
-    "subject_caps_ratio": 0.4458429191350992,
-    "n_urls": 0.4437754578953387,
-    "sender_prior_msgs": 0.40720323168204275
+    "text_score": 1.555698975758188,
+    "sender_domain_age_days": 1.0688989968687252,
+    "risky_attachments": 0.9145572193845919,
+    "payment_kw": 0.8929010585875823,
+    "ip_score": 0.6994591083358395,
+    "topic_shift": 0.6772551506805043,
+    "min_url_domain_age_days": 0.6440598803919284,
+    "lookalike_score": 0.6217810926903635,
+    "subject_body_sim": 0.540740282248749,
+    "url_bad_verdict": 0.49224253601601076,
+    "n_urls": 0.47944713179672255,
+    "sender_prior_msgs": 0.4791590632755915,
+    "subject_caps_ratio": 0.4634464059146552,
+    "prior_exchanges": 0.4609089474921466,
+    "domain_volume_24h": 0.42231451280791904
    },
    "text_terms": {
     "toward attack": [
@@ -456,15 +456,15 @@
   "44": {
    "ablation": {
     "Rules only (Tier 0 block)": {
-     "precision": 1.0,
-     "recall": 0.0975,
-     "f1": 0.1776765375854214,
+     "precision": 0.9912280701754386,
+     "recall": 0.2825,
+     "f1": 0.4396887159533074,
      "pr_auc": 0.5778241683128901,
-     "bec_recall_blocked": 0.208955223880597,
-     "bec_recall": 0.208955223880597,
+     "bec_recall_blocked": 0.23880597014925373,
+     "bec_recall": 0.23880597014925373,
      "hard_pos_recall": 0.0,
      "hard_neg_fp": 0.0,
-     "legit_fp": 0.0
+     "legit_fp": 1.0
     },
     "Text only (TF-IDF + LR)": {
      "precision": 0.62152133580705,
@@ -478,21 +478,21 @@
      "legit_fp": 204.0
     },
     "Metadata only (no text or subject features)": {
-     "precision": 0.9559585492227979,
+     "precision": 0.9584415584415584,
      "recall": 0.9225,
-     "f1": 0.9389312977099237,
-     "pr_auc": 0.985643890127912,
+     "f1": 0.9401273885350319,
+     "pr_auc": 0.9863296174195064,
      "bec_recall_blocked": 0.8059701492537313,
      "bec_recall": 0.8059701492537313,
-     "hard_pos_recall": 0.3333333333333333,
-     "hard_neg_fp": 15.0,
-     "legit_fp": 17.0
+     "hard_pos_recall": 0.2916666666666667,
+     "hard_neg_fp": 14.0,
+     "legit_fp": 16.0
     },
     "Full model (LightGBM, no subject features)": {
      "precision": 0.9948717948717949,
      "recall": 0.97,
      "f1": 0.9822784810126582,
-     "pr_auc": 0.994285503929923,
+     "pr_auc": 0.994492889335695,
      "bec_recall_blocked": 0.9402985074626866,
      "bec_recall": 0.9402985074626866,
      "hard_pos_recall": 0.5833333333333334,
@@ -500,126 +500,126 @@
      "legit_fp": 2.0
     },
     "Full model + subject features": {
-     "precision": 0.9974358974358974,
-     "recall": 0.9725,
-     "f1": 0.9848101265822785,
-     "pr_auc": 0.9954357591872651,
-     "bec_recall_blocked": 0.9402985074626866,
-     "bec_recall": 0.9402985074626866,
+     "precision": 0.9948979591836735,
+     "recall": 0.975,
+     "f1": 0.9848484848484849,
+     "pr_auc": 0.995642813044861,
+     "bec_recall_blocked": 0.9552238805970149,
+     "bec_recall": 0.9552238805970149,
      "hard_pos_recall": 0.5833333333333334,
-     "hard_neg_fp": 1.0,
-     "legit_fp": 1.0
+     "hard_neg_fp": 2.0,
+     "legit_fp": 2.0
     },
     "Cascade without intent check": {
-     "precision": 0.98,
+     "precision": 0.9824561403508771,
      "recall": 0.98,
-     "f1": 0.98,
+     "f1": 0.981226533166458,
      "pr_auc": NaN,
      "bec_recall_blocked": 0.8805970149253731,
      "bec_recall": 0.9552238805970149,
      "hard_pos_recall": 0.6666666666666666,
      "hard_neg_fp": 4.0,
-     "legit_fp": 8.0
+     "legit_fp": 7.0
     },
     "Full cascade": {
-     "precision": 0.98,
+     "precision": 0.9824561403508771,
      "recall": 0.98,
-     "f1": 0.98,
+     "f1": 0.981226533166458,
      "pr_auc": NaN,
      "bec_recall_blocked": 0.9253731343283582,
      "bec_recall": 0.9552238805970149,
      "hard_pos_recall": 0.6666666666666666,
      "hard_neg_fp": 4.0,
-     "legit_fp": 8.0
+     "legit_fp": 7.0
     },
     "Full cascade + async virus scan": {
-     "precision": 0.98,
+     "precision": 0.9824561403508771,
      "recall": 0.98,
-     "f1": 0.98,
+     "f1": 0.981226533166458,
      "pr_auc": NaN,
      "bec_recall_blocked": 0.9253731343283582,
      "bec_recall": 0.9552238805970149,
      "hard_pos_recall": 0.6666666666666666,
      "hard_neg_fp": 4.0,
-     "legit_fp": 8.0
+     "legit_fp": 7.0
     }
    },
    "per_class": {
     "legit": {
-     "precision": 0.9948717948717949,
-     "recall": 0.9948717948717949,
-     "f1": 0.9948717948717949,
+     "precision": 0.9948750800768738,
+     "recall": 0.9955128205128205,
+     "f1": 0.9951938481256007,
      "support": 1560,
-     "pr_auc (LightGBM)": 0.9995346020356873
+     "pr_auc (LightGBM)": 0.999536161319323
     },
     "spam": {
      "precision": 0.9873417721518988,
      "recall": 1.0,
      "f1": 0.9936305732484076,
      "support": 156,
-     "pr_auc (LightGBM)": 0.9999999999999998
+     "pr_auc (LightGBM)": 1.0
     },
     "phishing": {
-     "precision": 0.9801980198019802,
+     "precision": 1.0,
      "recall": 0.9519230769230769,
-     "f1": 0.9658536585365853,
+     "f1": 0.9753694581280788,
      "support": 104,
-     "pr_auc (LightGBM)": 0.9869724816220098
+     "pr_auc (LightGBM)": 0.9867372622884303
     },
     "bec": {
-     "precision": 0.9411764705882353,
+     "precision": 0.927536231884058,
      "recall": 0.9552238805970149,
-     "f1": 0.9481481481481482,
+     "f1": 0.9411764705882353,
      "support": 67,
-     "pr_auc (LightGBM)": 0.9820491802859028
+     "pr_auc (LightGBM)": 0.9798044645423765
     },
     "malware": {
      "precision": 0.9726027397260274,
      "recall": 0.9726027397260274,
      "f1": 0.9726027397260274,
      "support": 73,
-     "pr_auc (LightGBM)": 0.9974911843528698
+     "pr_auc (LightGBM)": 0.9967961119279377
     }
    },
    "latency_ms": {
-    "p50": 14.728916459716856,
-    "p95": 28.996464580995962,
-    "p99": 41.07495419331834,
-    "max": 62.19170801341534
+    "p50": 15.594271011650562,
+    "p95": 32.44955656118688,
+    "p99": 45.41119950125002,
+    "max": 67.77395901735872
    },
    "tier_share": {
-    "0": 0.01989795918367347,
-    "1": 0.9693877551020408,
-    "2": 0.010714285714285714
+    "0": 0.058163265306122446,
+    "1": 0.9326530612244898,
+    "2": 0.009183673469387756
    },
    "cost_per_mailbox_month": {
-    "base_implemented": 0.11817210813775511,
-    "base_proposed": 0.008749021403061224,
-    "projection_implemented": 2.8361305953061224,
-    "projection_proposed": 0.20997651367346937
+    "base_implemented": 0.11817247717857143,
+    "base_proposed": 0.008749390443877549,
+    "projection_implemented": 2.836139452285714,
+    "projection_proposed": 0.20998537065306117
    },
    "fail_open": 0,
-   "cpu_ms": 4.82979081632654,
+   "cpu_ms": 4.903598979591581,
    "tier2_headroom": {
-    "usd_per_mailbox_month": 0.18182789186224488,
-    "usd_per_gray_zone_email": 0.11313735493650792
+    "usd_per_mailbox_month": 0.18182752282142856,
+    "usd_per_gray_zone_email": 0.13199331286296295
    },
    "shap_top": {
-    "text_score": 1.787385845316631,
-    "sender_domain_age_days": 1.2683493189490957,
-    "risky_attachments": 0.8945376204909661,
-    "payment_kw": 0.8281542790843197,
-    "min_url_domain_age_days": 0.6765097673259942,
-    "topic_shift": 0.6514861994015103,
-    "sender_prior_msgs": 0.6401501254346745,
-    "ip_score": 0.6212264475298588,
-    "subject_body_sim": 0.6109953200550164,
-    "lookalike_score": 0.6054880137342777,
-    "subject_caps_ratio": 0.5517016712239483,
-    "n_urls": 0.4760500636362327,
-    "url_bad_verdict": 0.4150033780435657,
-    "domain_volume_24h": 0.4077160102844492,
-    "prior_exchanges": 0.31149687228069406
+    "text_score": 1.7792721862922405,
+    "sender_domain_age_days": 1.2936959927967902,
+    "risky_attachments": 0.8831038151724091,
+    "payment_kw": 0.7776192853400554,
+    "min_url_domain_age_days": 0.6826933111501727,
+    "topic_shift": 0.6565263731969108,
+    "ip_score": 0.6433637814850208,
+    "subject_body_sim": 0.6262422591080108,
+    "lookalike_score": 0.6147861117729743,
+    "sender_prior_msgs": 0.5966976110818387,
+    "subject_caps_ratio": 0.5550565613585026,
+    "n_urls": 0.4789934042796513,
+    "url_bad_verdict": 0.4098465370912266,
+    "domain_volume_24h": 0.39273112771231916,
+    "prior_exchanges": 0.3431691460049573
    },
    "text_terms": {
     "toward attack": [
@@ -680,11 +680,11 @@
    "ablation": {
     "Rules only (Tier 0 block)": {
      "precision": 1.0,
-     "recall": 0.12602739726027398,
-     "f1": 0.22384428223844283,
+     "recall": 0.27945205479452057,
+     "f1": 0.43683083511777304,
      "pr_auc": 0.5681430338067217,
-     "bec_recall_blocked": 0.3582089552238806,
-     "bec_recall": 0.3582089552238806,
+     "bec_recall_blocked": 0.373134328358209,
+     "bec_recall": 0.373134328358209,
      "hard_pos_recall": 0.0,
      "hard_neg_fp": 0.0,
      "legit_fp": 0.0
@@ -701,79 +701,79 @@
      "legit_fp": 202.0
     },
     "Metadata only (no text or subject features)": {
-     "precision": 0.963276836158192,
-     "recall": 0.9342465753424658,
-     "f1": 0.9485396383866481,
-     "pr_auc": 0.9814877631292545,
+     "precision": 0.9661016949152542,
+     "recall": 0.936986301369863,
+     "f1": 0.9513212795549374,
+     "pr_auc": 0.9796943591234208,
      "bec_recall_blocked": 0.8955223880597015,
      "bec_recall": 0.8955223880597015,
      "hard_pos_recall": 0.5909090909090909,
-     "hard_neg_fp": 13.0,
-     "legit_fp": 13.0
+     "hard_neg_fp": 12.0,
+     "legit_fp": 12.0
     },
     "Full model (LightGBM, no subject features)": {
-     "precision": 0.9943977591036415,
-     "recall": 0.9726027397260274,
-     "f1": 0.9833795013850416,
-     "pr_auc": 0.9875520376313739,
-     "bec_recall_blocked": 0.9402985074626866,
-     "bec_recall": 0.9402985074626866,
-     "hard_pos_recall": 0.6363636363636364,
-     "hard_neg_fp": 1.0,
-     "legit_fp": 2.0
-    },
-    "Full model + subject features": {
-     "precision": 0.994413407821229,
+     "precision": 0.9971988795518207,
      "recall": 0.9753424657534246,
-     "f1": 0.9847856154910097,
-     "pr_auc": 0.9880943175136312,
+     "f1": 0.9861495844875346,
+     "pr_auc": 0.9881130554316725,
      "bec_recall_blocked": 0.9552238805970149,
      "bec_recall": 0.9552238805970149,
      "hard_pos_recall": 0.6363636363636364,
      "hard_neg_fp": 1.0,
-     "legit_fp": 2.0
+     "legit_fp": 1.0
+    },
+    "Full model + subject features": {
+     "precision": 0.9971988795518207,
+     "recall": 0.9753424657534246,
+     "f1": 0.9861495844875346,
+     "pr_auc": 0.9879665714364275,
+     "bec_recall_blocked": 0.9552238805970149,
+     "bec_recall": 0.9552238805970149,
+     "hard_pos_recall": 0.6363636363636364,
+     "hard_neg_fp": 1.0,
+     "legit_fp": 1.0
     },
     "Cascade without intent check": {
-     "precision": 0.9861878453038674,
+     "precision": 0.9889196675900277,
      "recall": 0.9780821917808219,
-     "f1": 0.9821182943603851,
+     "f1": 0.9834710743801653,
+     "pr_auc": NaN,
+     "bec_recall_blocked": 0.9402985074626866,
+     "bec_recall": 0.9701492537313433,
+     "hard_pos_recall": 0.6363636363636364,
+     "hard_neg_fp": 2.0,
+     "legit_fp": 4.0
+    },
+    "Full cascade": {
+     "precision": 0.9889196675900277,
+     "recall": 0.9780821917808219,
+     "f1": 0.9834710743801653,
      "pr_auc": NaN,
      "bec_recall_blocked": 0.9552238805970149,
      "bec_recall": 0.9701492537313433,
      "hard_pos_recall": 0.6363636363636364,
      "hard_neg_fp": 2.0,
-     "legit_fp": 5.0
-    },
-    "Full cascade": {
-     "precision": 0.9861878453038674,
-     "recall": 0.9780821917808219,
-     "f1": 0.9821182943603851,
-     "pr_auc": NaN,
-     "bec_recall_blocked": 0.9701492537313433,
-     "bec_recall": 0.9701492537313433,
-     "hard_pos_recall": 0.6363636363636364,
-     "hard_neg_fp": 2.0,
-     "legit_fp": 5.0
+     "legit_fp": 4.0
     },
     "Full cascade + async virus scan": {
-     "precision": 0.9861878453038674,
+     "precision": 0.9889196675900277,
      "recall": 0.9780821917808219,
-     "f1": 0.9821182943603851,
+     "f1": 0.9834710743801653,
      "pr_auc": NaN,
-     "bec_recall_blocked": 0.9701492537313433,
+     "bec_recall_blocked": 0.9552238805970149,
      "bec_recall": 0.9701492537313433,
      "hard_pos_recall": 0.6363636363636364,
      "hard_neg_fp": 2.0,
-     "legit_fp": 5.0
+     "legit_fp": 4.0
     }
    },
    "per_class": {
     "legit": {
-     "precision": 0.9949874686716792,
-     "recall": 0.9968612680477087,
-     "f1": 0.9959234869865161,
+     "precision": 0.9949906073888541,
+     "recall": 0.997489014438167,
+     "f1": 0.9962382445141066,
      "support": 1593,
-     "pr_auc (LightGBM)": 0.9976468960670505
+     "pr_auc (LightGBM)": 0.9975623449480842
     },
     "spam": {
      "precision": 0.9925373134328358,
@@ -787,62 +787,62 @@
      "recall": 0.9532710280373832,
      "f1": 0.9714285714285714,
      "support": 107,
-     "pr_auc (LightGBM)": 0.9804679204156066
+     "pr_auc (LightGBM)": 0.9807798438343064
     },
     "bec": {
-     "precision": 0.9696969696969697,
+     "precision": 0.9846153846153847,
      "recall": 0.9552238805970149,
-     "f1": 0.9624060150375939,
+     "f1": 0.9696969696969697,
      "support": 67,
-     "pr_auc (LightGBM)": 0.9916380048257974
+     "pr_auc (LightGBM)": 0.992264913143443
     },
     "malware": {
      "precision": 0.9661016949152542,
      "recall": 0.9827586206896551,
      "f1": 0.9743589743589743,
      "support": 58,
-     "pr_auc (LightGBM)": 0.9974645030425966
+     "pr_auc (LightGBM)": 0.9971672378820733
     }
    },
    "latency_ms": {
-    "p50": 14.718604506924748,
-    "p95": 28.54452314786613,
-    "p99": 43.34059836226518,
-    "max": 245.25391694623977
+    "p50": 13.834270997904241,
+    "p95": 26.62931422237307,
+    "p99": 42.32373744598591,
+    "max": 78.73674994334579
    },
    "tier_share": {
-    "0": 0.02349336057201226,
-    "1": 0.9734422880490297,
-    "2": 0.0030643513789581204
+    "0": 0.05209397344228805,
+    "1": 0.9443309499489275,
+    "2": 0.003575076608784474
    },
    "cost_per_mailbox_month": {
-    "base_implemented": 0.11155126337589377,
-    "base_proposed": 0.008300241925434118,
-    "projection_implemented": 2.6772303210214505,
-    "projection_proposed": 0.19920580621041883
+    "base_implemented": 0.11154572158324821,
+    "base_proposed": 0.008371308917262513,
+    "projection_implemented": 2.677097317997957,
+    "projection_proposed": 0.2009114140143003
    },
    "fail_open": 0,
-   "cpu_ms": 4.838987742594934,
+   "cpu_ms": 3.7306292134831205,
    "tier2_headroom": {
-    "usd_per_mailbox_month": 0.18844873662410622,
-    "usd_per_gray_zone_email": 0.40998069589999997
+    "usd_per_mailbox_month": 0.18845427841675177,
+    "usd_per_gray_zone_email": 0.3514223591809524
    },
    "shap_top": {
-    "text_score": 1.7893175093285483,
-    "sender_domain_age_days": 1.069880047913438,
-    "risky_attachments": 0.9114880451418744,
-    "payment_kw": 0.9052131658452826,
-    "subject_body_sim": 0.671012900909238,
-    "lookalike_score": 0.6336047466060424,
-    "min_url_domain_age_days": 0.617804491519442,
-    "n_urls": 0.6010178080995725,
-    "sender_prior_msgs": 0.5922019119965747,
-    "topic_shift": 0.5143638960925772,
-    "ip_score": 0.479186100190732,
-    "url_bad_verdict": 0.4750366750772148,
-    "subject_caps_ratio": 0.38916404783881187,
-    "domain_volume_24h": 0.37251389945012175,
-    "prior_exchanges": 0.30222544562118475
+    "text_score": 1.8302716701035617,
+    "sender_domain_age_days": 1.0217027150491895,
+    "risky_attachments": 0.9085800980716066,
+    "payment_kw": 0.8479156169895029,
+    "subject_body_sim": 0.6877206677461353,
+    "n_urls": 0.62953264009178,
+    "min_url_domain_age_days": 0.6208015909503765,
+    "lookalike_score": 0.5802515931579388,
+    "topic_shift": 0.5168264615948577,
+    "sender_prior_msgs": 0.4931946329902467,
+    "ip_score": 0.46824318212217425,
+    "url_bad_verdict": 0.4642088142807395,
+    "subject_caps_ratio": 0.3979693231821595,
+    "domain_volume_24h": 0.37823633146327534,
+    "prior_exchanges": 0.26998687526566645
    },
    "text_terms": {
     "toward attack": [
@@ -887,7 +887,7 @@
     "legit": 4,
     "actions": {
      "c01_job_telegram": "QUARANTINE",
-     "c02_lottery": "SPAM_FOLDER",
+     "c02_lottery": "QUARANTINE",
      "c03_sextortion": "DELIVER",
      "c04_fake_delivery": "WARNING_BANNER",
      "c05_callback_scam": "QUARANTINE",
@@ -902,15 +902,15 @@
   "46": {
    "ablation": {
     "Rules only (Tier 0 block)": {
-     "precision": 0.9534883720930233,
-     "recall": 0.10406091370558376,
-     "f1": 0.18764302059496568,
+     "precision": 0.9770992366412213,
+     "recall": 0.3248730964467005,
+     "f1": 0.4876190476190476,
      "pr_auc": 0.6052754148238131,
-     "bec_recall_blocked": 0.25,
-     "bec_recall": 0.25,
+     "bec_recall_blocked": 0.2647058823529412,
+     "bec_recall": 0.2647058823529412,
      "hard_pos_recall": 0.0,
      "hard_neg_fp": 2.0,
-     "legit_fp": 2.0
+     "legit_fp": 3.0
     },
     "Text only (TF-IDF + LR)": {
      "precision": 0.665406427221172,
@@ -924,148 +924,148 @@
      "legit_fp": 177.0
     },
     "Metadata only (no text or subject features)": {
-     "precision": 0.973404255319149,
-     "recall": 0.9289340101522843,
-     "f1": 0.9506493506493506,
-     "pr_auc": 0.9911933434958455,
-     "bec_recall_blocked": 0.8235294117647058,
-     "bec_recall": 0.8235294117647058,
-     "hard_pos_recall": 0.5833333333333334,
-     "hard_neg_fp": 9.0,
-     "legit_fp": 10.0
+     "precision": 0.9763779527559056,
+     "recall": 0.9441624365482234,
+     "f1": 0.96,
+     "pr_auc": 0.9945536569763306,
+     "bec_recall_blocked": 0.8382352941176471,
+     "bec_recall": 0.8382352941176471,
+     "hard_pos_recall": 0.5,
+     "hard_neg_fp": 8.0,
+     "legit_fp": 9.0
     },
     "Full model (LightGBM, no subject features)": {
-     "precision": 0.989821882951654,
-     "recall": 0.9873096446700508,
-     "f1": 0.98856416772554,
-     "pr_auc": 0.9968924556862127,
-     "bec_recall_blocked": 0.9411764705882353,
-     "bec_recall": 0.9411764705882353,
-     "hard_pos_recall": 0.75,
-     "hard_neg_fp": 3.0,
-     "legit_fp": 4.0
-    },
-    "Full model + subject features": {
      "precision": 0.9948849104859335,
      "recall": 0.9873096446700508,
      "f1": 0.9910828025477707,
-     "pr_auc": 0.9968738553125743,
+     "pr_auc": 0.9971273817406806,
      "bec_recall_blocked": 0.9411764705882353,
      "bec_recall": 0.9411764705882353,
      "hard_pos_recall": 0.75,
      "hard_neg_fp": 2.0,
      "legit_fp": 2.0
     },
-    "Cascade without intent check": {
-     "precision": 0.989821882951654,
-     "recall": 0.9873096446700508,
-     "f1": 0.98856416772554,
-     "pr_auc": NaN,
-     "bec_recall_blocked": 0.8970588235294118,
-     "bec_recall": 0.9411764705882353,
+    "Full model + subject features": {
+     "precision": 0.9948979591836735,
+     "recall": 0.9898477157360406,
+     "f1": 0.9923664122137404,
+     "pr_auc": 0.9970103960976758,
+     "bec_recall_blocked": 0.9558823529411765,
+     "bec_recall": 0.9558823529411765,
      "hard_pos_recall": 0.75,
-     "hard_neg_fp": 4.0,
-     "legit_fp": 4.0
+     "hard_neg_fp": 2.0,
+     "legit_fp": 2.0
+    },
+    "Cascade without intent check": {
+     "precision": 0.9848484848484849,
+     "recall": 0.9898477157360406,
+     "f1": 0.9873417721518988,
+     "pr_auc": NaN,
+     "bec_recall_blocked": 0.9117647058823529,
+     "bec_recall": 0.9558823529411765,
+     "hard_pos_recall": 0.75,
+     "hard_neg_fp": 5.0,
+     "legit_fp": 6.0
     },
     "Full cascade": {
-     "precision": 0.989821882951654,
-     "recall": 0.9873096446700508,
-     "f1": 0.98856416772554,
+     "precision": 0.9848484848484849,
+     "recall": 0.9898477157360406,
+     "f1": 0.9873417721518988,
      "pr_auc": NaN,
-     "bec_recall_blocked": 0.9264705882352942,
-     "bec_recall": 0.9411764705882353,
+     "bec_recall_blocked": 0.9558823529411765,
+     "bec_recall": 0.9558823529411765,
      "hard_pos_recall": 0.75,
-     "hard_neg_fp": 4.0,
-     "legit_fp": 4.0
+     "hard_neg_fp": 5.0,
+     "legit_fp": 6.0
     },
     "Full cascade + async virus scan": {
-     "precision": 0.989821882951654,
-     "recall": 0.9873096446700508,
-     "f1": 0.98856416772554,
+     "precision": 0.9848484848484849,
+     "recall": 0.9898477157360406,
+     "f1": 0.9873417721518988,
      "pr_auc": NaN,
-     "bec_recall_blocked": 0.9264705882352942,
-     "bec_recall": 0.9411764705882353,
+     "bec_recall_blocked": 0.9558823529411765,
+     "bec_recall": 0.9558823529411765,
      "hard_pos_recall": 0.75,
-     "hard_neg_fp": 4.0,
-     "legit_fp": 4.0
+     "hard_neg_fp": 5.0,
+     "legit_fp": 6.0
     }
    },
    "per_class": {
     "legit": {
-     "precision": 0.9967126890203813,
-     "recall": 0.9973684210526316,
-     "f1": 0.9970404472213088,
+     "precision": 0.997364953886693,
+     "recall": 0.9960526315789474,
+     "f1": 0.9967083607636603,
      "support": 1520,
-     "pr_auc (LightGBM)": 0.999094248654329
+     "pr_auc (LightGBM)": 0.9990410037341604
     },
     "spam": {
      "precision": 1.0,
      "recall": 0.9315068493150684,
      "f1": 0.9645390070921985,
      "support": 146,
-     "pr_auc (LightGBM)": 0.9996354825273757
+     "pr_auc (LightGBM)": 1.0
     },
     "phishing": {
      "precision": 0.9137931034482759,
      "recall": 1.0,
      "f1": 0.954954954954955,
      "support": 106,
-     "pr_auc (LightGBM)": 0.9996569468267582
+     "pr_auc (LightGBM)": 0.9991867273910214
     },
     "bec": {
-     "precision": 0.9411764705882353,
-     "recall": 0.9411764705882353,
-     "f1": 0.9411764705882353,
+     "precision": 0.9285714285714286,
+     "recall": 0.9558823529411765,
+     "f1": 0.9420289855072463,
      "support": 68,
-     "pr_auc (LightGBM)": 0.984563066463595
+     "pr_auc (LightGBM)": 0.9856442336370942
     },
     "malware": {
-     "precision": 1.0,
+     "precision": 0.9864864864864865,
      "recall": 0.9864864864864865,
-     "f1": 0.9931972789115646,
+     "f1": 0.9864864864864865,
      "support": 74,
      "pr_auc (LightGBM)": 0.9991447143345877
     }
    },
    "latency_ms": {
-    "p50": 13.147604011464864,
-    "p95": 26.541707839351147,
-    "p99": 36.27099929261018,
-    "max": 49.16770802810788
+    "p50": 14.795458468142897,
+    "p95": 29.659724497469117,
+    "p99": 39.231590575072886,
+    "max": 52.555333939380944
    },
    "tier_share": {
-    "0": 0.02246603970741902,
-    "1": 0.9738766980146291,
+    "0": 0.06844305120167189,
+    "1": 0.9278996865203761,
     "2": 0.0036572622779519333
    },
    "cost_per_mailbox_month": {
-    "base_implemented": 0.11379280945663532,
-    "base_proposed": 0.00737666525600836,
-    "projection_implemented": 2.7310274269592476,
-    "projection_proposed": 0.17703996614420062
+    "base_implemented": 0.11380069122518285,
+    "base_proposed": 0.007306177118599789,
+    "projection_implemented": 2.731216589404389,
+    "projection_proposed": 0.17534825084639494
    },
    "fail_open": 0,
-   "cpu_ms": 3.075997910135873,
+   "cpu_ms": 4.652351619644434,
    "tier2_headroom": {
-    "usd_per_mailbox_month": 0.18620719054336465,
-    "usd_per_gray_zone_email": 0.3394291073333333
+    "usd_per_mailbox_month": 0.18619930877481713,
+    "usd_per_gray_zone_email": 0.3394147399952381
    },
    "shap_top": {
-    "text_score": 1.9880210877129645,
-    "sender_domain_age_days": 1.2617358744725173,
-    "payment_kw": 0.9564372797530302,
-    "risky_attachments": 0.7758960515746607,
-    "min_url_domain_age_days": 0.7411982774213001,
-    "subject_body_sim": 0.706804579622582,
-    "lookalike_score": 0.6423758277862968,
-    "topic_shift": 0.5162835367540287,
-    "subject_caps_ratio": 0.5009410221023921,
-    "n_urls": 0.4804704387650228,
-    "sender_prior_msgs": 0.4656921924639399,
-    "ip_score": 0.4622784313771188,
-    "url_bad_verdict": 0.33541723726818146,
-    "domain_volume_24h": 0.30022978098151826,
-    "prior_exchanges": 0.2739637458288529
+    "text_score": 1.987581457330317,
+    "sender_domain_age_days": 1.2265889500116758,
+    "payment_kw": 0.9649999786866031,
+    "risky_attachments": 0.7848846702926879,
+    "min_url_domain_age_days": 0.726023417639181,
+    "subject_body_sim": 0.6820021605599091,
+    "lookalike_score": 0.5874154734688405,
+    "topic_shift": 0.5406213843258758,
+    "ip_score": 0.49866938596531185,
+    "sender_prior_msgs": 0.48862250827212256,
+    "n_urls": 0.48691779371690985,
+    "subject_caps_ratio": 0.4855955372356776,
+    "url_bad_verdict": 0.337294693527885,
+    "domain_volume_24h": 0.31860696005771283,
+    "prior_exchanges": 0.28972251046494546
    },
    "text_terms": {
     "toward attack": [

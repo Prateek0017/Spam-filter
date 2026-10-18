@@ -57,7 +57,7 @@ REASONS = {r.code: r.description for r in RULES} | {
     "ASKS_PAYMENT": "Asks for a payment, wire or bank-detail change",
     "ASKS_GIFT_CARD": "Asks for gift cards",
     "ASKS_CREDENTIAL": "Asks the reader to sign in or share a password",
-    "NEW_SENDER": "No trusted history: nothing from this sender was delivered, and nobody here wrote to them",
+    "NEW_SENDER": "Not established: nobody here wrote to them, and fewer than 3 of their emails were delivered cleanly",
     "TOPIC_SHIFT": "Very different from what this sender usually writes",
     "FREEMAIL_SENDER": "New sender on a free webmail domain",
     "ESTABLISHED_SENDER": "Known correspondent: warned with a banner instead of quarantined",

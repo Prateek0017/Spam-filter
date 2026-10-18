@@ -62,7 +62,6 @@ def test_history_starts_empty_and_grows(stream) -> None:
     seen: set[tuple[str, str]] = set()
     for e, f in zip(emails, feats):
         key = (e.tenant_id, e.from_addr.lower())
-        assert f["first_time_sender"] == float(key not in seen)
         assert math.isnan(f["topic_shift"]) == (key not in seen)
         seen.add(key)
     assert set(FEATURES) - {"text_score"} == set(feats[0])     # text_score is added by the trainer
@@ -96,13 +95,12 @@ def test_lookalike_score() -> None:
     assert lookalike_score("brightcart.com", protected) < 85
 
 
-def test_rules_block_only_first_time_senders_and_fail_open() -> None:
+def test_rules_block_only_unestablished_senders_and_fail_open() -> None:
     base = {k: 0.0 for k in FEATURES} | {"sender_domain_age_days": 3000, "ip_score": 0.9}
-    lookalike = base | {"lookalike_score": 95.0, "first_time_sender": 1.0}
+    lookalike = base | {"lookalike_score": 95.0}
     hits = run_rules(lookalike)
-    assert [r.code for r in hits] == ["LOOKALIKE_DOMAIN"] and blocks(hits, lookalike)
-    known = lookalike | {"first_time_sender": 0.0}                # e.g. a sister company we talk to
-    assert not blocks(run_rules(known), known)
+    assert [r.code for r in hits] == ["LOOKALIKE_DOMAIN"] and blocks(hits, established=False)
+    assert not blocks(hits, established=True)                     # e.g. a sister company we talk to
     timed_out = base | {"ip_score": np.nan, "sender_domain_age_days": np.nan, "domain_volume_24h": 50}
     assert run_rules(timed_out) == []                             # missing signals never fire a rule
     loud_subject = base | {"fake_reply": 1.0, "subject_body_sim": 0.0, "subject_kw": 5.0,

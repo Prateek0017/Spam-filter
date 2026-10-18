@@ -55,7 +55,7 @@ def build_feature_table(cfg: dict, fit_end: datetime | None = None,
     vectorizer = make_vectorizer().fit([t for t, e in zip(texts, emails) if e.timestamp < fit_end])
     X_text = vectorizer.transform(texts)
 
-    fx = FeatureExtractor(tenants, build_services(cfg), vectorizer)
+    fx = FeatureExtractor(tenants, build_services(cfg), vectorizer, cfg["cascade"]["established_min_msgs"])
     models = Path(cfg["paths"]["models"])
     models.mkdir(parents=True, exist_ok=True)
     rows, snapshot_saved = [], False
@@ -70,14 +70,14 @@ def build_feature_table(cfg: dict, fit_end: datetime | None = None,
             joblib.dump(fx, models / "feature_extractor.joblib")
             snapshot_saved = True
         feats, _ = fx.extract(e, X_text[i])
-        sent_to, delivered_before = fx.trust(e)
+        established = fx.is_established(e)
         hits = run_rules(feats)
         rows.append({
             "message_id": e.message_id, "tenant_id": e.tenant_id, "timestamp": e.timestamp,
             "category": e.category, "true_category": e.true_category, "label": e.label,
             "true_label": int(e.true_category != "legit"), "scenario": e.scenario,
-            **feats, "sent_to_sender": sent_to, "delivered_prior": delivered_before,
-            "rules": "|".join(r.code for r in hits), "rule_block": blocks(hits, feats),
+            **feats, "established": established,
+            "rules": "|".join(r.code for r in hits), "rule_block": blocks(hits, established),
         })
         # Offline there is no verdict yet: mail whose (observed, possibly noisy) label is legit stands in
         # for "delivered and not reported". Only that mail earns trust.

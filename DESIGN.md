@@ -13,29 +13,33 @@ A cascade spends money only where it is needed: rules and a small LightGBM decid
 only the gray zone (~1%) gets the extra intent check. The same structure is what would make an
 embedding model or an LLM affordable later: plug it into Tier 2 and it sees 1% of traffic, not 100%.
 
-Cost of the choice: three places to tune instead of one. Over LightGBM alone the cascade adds +1.7
-points BEC recall (blocked or bannered) and +5.1 points hard-positive recall for ~4 more legit banners
+Cost of the choice: three places to tune instead of one. Over LightGBM alone the cascade adds +2.0
+points BEC recall (blocked or bannered) and +4.5 points hard-positive recall for ~4 more legit banners
 per run. The intent check's own contribution is narrower: with the same rules and thresholds,
 bannering every gray-zone email detects exactly as much, and the intent check turns banners into
-quarantines for attacks (BEC blocked 88.1% → 91.5%) without flagging more legit mail.
+quarantines for attacks (BEC blocked 88.4% → 91.8%) without flagging more legit mail.
 
 ## 2. The 5-second deadline, enforced
 
-WHOIS, IP and URL lookups run concurrently, each with its own timeout (50–80 ms), under one shared
-deadline taken from `sync_deadline_ms`. Whatever has not answered by then counts as missing. If the
-deadline expires, the verdict is DELIVER (fail open, as the provider would do) and is evaluated as
-such; the async virus scan can still pull the email afterwards. Latency is measured once, as wall time
-of the whole synchronous path, with the mock lookups really sleeping their simulated latency (the
-earlier version added a simulated lookup time on top of measured compute). A Tier 0 block returns
-before the text model and LightGBM run. Tests cover lookups slower than the deadline (DELIVER after
-~100 ms) and 40 links (82 lookups, ~1.6 s sequentially) finishing well inside the deadline. Over 5
-seeds: p99 41.3 ± 3.4 ms and zero fail-open verdicts.
+The whole decision (lookups, rules, text model, LightGBM, intent check) runs in a worker, and
+`classify` waits for it with a hard timeout set by `sync_deadline_ms`. If the deadline passes,
+`classify` returns DELIVER at the deadline (fail open, as the provider would do), whatever is still
+running; the late result is discarded and the async virus scan can still pull the email. An earlier
+version only checked the deadline after model inference returned, so a slow model could still hold the
+response. Inside the worker, WHOIS, IP and URL lookups run concurrently, each with its own timeout
+(50–80 ms); whatever has not answered by the deadline counts as missing. Latency is measured once, as
+wall time, with the mock lookups really sleeping their simulated latency. A Tier 0 block returns before
+the text model and LightGBM run. Tests cover lookups slower than the deadline (DELIVER after ~100 ms),
+a model that takes 1 s (DELIVER at a 200 ms deadline), and 40 links (82 lookups, ~1.6 s sequentially)
+finishing well inside the deadline. Over 5
+seeds: p99 42.8 ± 4.5 ms and zero fail-open verdicts.
 
 ## 3. Rules explain; they rarely decide
 
 Each rule's precision was measured on the training period. Only two were precise enough to quarantine
 alone (lookalike domain, young domain sending in bulk), and even those only fire as blocks for
-**first-time senders**: legit sister companies have lookalike domains (lookalike precision rises from
+senders who are **not established** (section 4): legit sister companies have lookalike domains
+(lookalike precision rises from
 0.90 to 0.97 with this gate, seed 42). `INTERNAL_SPOOF` (own domain, DMARC fail) looks like a block rule
 but had 0.45 precision: the classic cause is a legit SaaS tool sending as the company without DMARC
 alignment. All other rules add reason codes and leave the decision to the model. Missing signals (a
@@ -44,22 +48,28 @@ attackers to vary and common in legit mail, so they only feed the model.
 
 ## 4. Point-in-time features, trust and a time-based split
 
-Every relationship feature (first-time sender, prior exchanges, 24 h domain volume, topic shift) is
+Every relationship feature (untrusted sender, prior exchanges, 24 h domain volume, topic shift) is
 computed by walking the stream in time order, so an email never sees later mail. History includes the
 tenant's **sent-mail log**: "have these two people corresponded?" is answered from what the mailbox
 actually sent, never from the quoted thread inside the incoming email, which an attacker can forge.
 
-**Trust is separate from history and must be earned.** A sender is *established* only if this mailbox
-has written to them, or at least `established_min_msgs` (3) of their earlier emails were **delivered**
-without a banner. Quarantined, spam-foldered and bannered mail still counts for volume and topic
-history but never earns trust; the earlier version let one unsolicited email make a sender
-"established". Mail failing DMARC inherits no trust, because its From address may be spoofed (the
-challenge set's self-spoofed sextortion exposed this: a spoofed colleague was being treated as
-established). In the offline replay, mail from before the test period has no verdicts, so mail whose
-observed label is legit stands in for "delivered and not reported"; inside the test period only the
-cascade's own DELIVER verdicts earn trust. Regression tests cover a stranger's payment request that is
-quarantined and then sent again (still quarantine-eligible) and a DMARC-failing copy of an established
-colleague (quarantined, not bannered).
+**Trust is separate from history, must be earned, and has one definition.** A sender is *established*
+only if this mailbox has written to them, or at least `established_min_msgs` (3) of their earlier
+emails were **delivered** without a banner and passed DMARC; a message that itself fails DMARC is never
+established. `FeatureExtractor.is_established` is the only implementation, and every tier calls it:
+Tier 0 block rules act only on senders who are not established, the model feature `untrusted_sender`
+is its negation, and Tier 2 treats non-established senders as new and never quarantines an
+established one. Earlier versions used different definitions on different paths (Tier 0 used the raw
+received count, Tier 2 treated one clean delivery as enough, and DMARC-failing deliveries still
+incremented the counter), so a repeated quarantined lookalike lost its Tier 0 block and a stranger
+could gain trust cheaply. Quarantined, spam-foldered and bannered mail still counts for volume and
+topic history but never earns trust. In the offline replay, mail from before the test period has no
+verdicts, so mail whose observed label is legit stands in for "delivered and not reported"; inside the
+test period only the cascade's own DELIVER verdicts earn trust. Regression tests cover: a quarantined
+lookalike sending again (still blocked at Tier 0), a quarantined stranger's repeated payment request
+(still quarantine-eligible), one clean delivery followed by a payment request (still new), three
+DMARC-failing deliveries (still not established), and a DMARC-failing copy of an established colleague
+(quarantined, not bannered).
 
 A random split would leak campaign siblings and future history into training; the last 12 days are the
 test set instead. The first 7 days are excluded from **LightGBM** training only, because every sender
@@ -92,18 +102,18 @@ email without links, any lookup that timed out. Left as NaN, LightGBM learned a 
 "missing", and because missing history mostly means a new sender (mostly attackers in training), a
 missing topic shift pushed +0.175 toward attack on average. The model now receives the training
 median for any missing value (`feature_fill.json`, saved with the model). That supplies a typical
-value, **not a guaranteed neutral contribution**: in seed 42 a missing topic shift still pushes +0.036
-and a missing link age −0.067 on average, because the model can still combine the filled value with
-other features. "New sender" is carried by the explicit `first_time_sender` feature. Rules see the raw
+value, **not a guaranteed neutral contribution**: in seed 42 a missing topic shift still pushes +0.039
+and a missing link age −0.079 on average, because the model can still combine the filled value with
+other features. "New sender" is carried by the explicit `untrusted_sender` feature. Rules see the raw
 NaN, so a timeout never fires a rule.
 
 ## 7. Subject-line features
 
 Six subject features (fake reply, subject–body similarity, subject keywords, capitals, "!", emojis)
-went in as model features only. On this data they add little (PR-AUC 0.993 → 0.994, legit flagged
-4.2 → 3.0 per run, hard-positive recall 59.8 → 60.3%, inside the noise). The interesting one,
+went in as model features only. On this data they have no measurable effect (PR-AUC 0.994 with or
+without, legit flagged 3.2 per run either way, hard-positive recall 59.8 → 59.2%, inside the noise). The interesting one,
 `fake_reply`, is redundant here because every fake reply comes from a new attacker address that
-`first_time_sender` already catches; its value is against a hijacked account that fakes a reply,
+`untrusted_sender` already catches; its value is against a hijacked account that fakes a reply,
 which the data does not yet contain. Kept because they are cheap, explainable, and cover a real
 attacker trick.
 
@@ -133,30 +143,33 @@ LightGBM settings (fixed: learning rate 0.05, subsample 0.8, colsample 0.8):
 
 | Trees | Leaves | min_child_samples | reg_lambda | Validation PR-AUC |
 |---|---|---|---|---|
-| 300 | 15 | 20 | 0.0 | 0.9562 |
-| **150** | **15** | **20** | **0.0** | **0.9585 (chosen)** |
-| 300 | 7 | 40 | 0.0 | 0.9579 |
-| 300 | 15 | 40 | 5.0 | 0.9560 |
-| 150 | 15 | 40 | 5.0 | 0.9564 |
+| 300 | 15 | 20 | 0.0 | 0.9546 |
+| **150** | **15** | **20** | **0.0** | **0.9604 (chosen)** |
+| 300 | 7 | 40 | 0.0 | 0.9577 |
+| 300 | 15 | 40 | 5.0 | 0.9540 |
+| 150 | 15 | 40 | 5.0 | 0.9520 |
 
 An earlier version of this file said a regularised model (`min_child_samples=40`, `reg_lambda=5`) had
 won; that came from an ad-hoc comparison on an older data draw and does not reproduce, so the config
-now uses the script's choice. The spread across settings (0.956–0.959) is small, so the choice matters
+now uses the script's choice. The spread across settings (0.952–0.960) is small, so the choice matters
 little.
 
 Gray-zone lower bound (upper bound 0.8), with the trust rules and keyword layer in place. The rule is
-a **banner budget**: catch the most hard positives while flagging at most 1% of legit mail (≤9 here).
+a **banner budget**: catch the most hard positives while flagging at most 1% of legit mail (≤9 here);
+if no bound fits, use the most conservative one.
 
 | Lower bound | Sent to Tier 2 | Recall | Hard-positive recall | Legit flagged | Legit quarantined / spam-foldered |
 |---|---|---|---|---|---|
-| **0.30 (chosen)** | 0.3% | 93.9% | 77% | 8 | 7 |
-| 0.20 | 0.7% | 94.3% | 82% | 12 | 7 |
-| 0.10 | 2.0% | 94.9% | 91% | 22 | 8 |
-| 0.05 | 3.3% | 95.3% | 95% | 33 | 8 |
+| **0.30 (chosen)** | 0.7% | 94.3% | 82% | 10 | 6 |
+| 0.20 | 0.7% | 94.3% | 82% | 11 | 6 |
+| 0.10 | 1.7% | 94.9% | 91% | 18 | 7 |
+| 0.05 | 3.1% | 94.9% | 91% | 31 | 7 |
 
-"Legit" here is by observed label, so it includes a few mislabelled attacks; the quarantined ones come
-from Tier 0 and confident Tier 1 decisions, not from the gray zone. 0.1 would be a reasonable choice for
-a customer who accepts ~2.4% flagged mail in exchange for catching most hijacked-account attacks. Rule
+With the shared trust definition, no bound meets the budget: 0.3 flags 10 of 907 legit validation
+emails (1.1%), so the script falls back to it and says so. "Legit" here is by observed label, so it
+includes a few mislabelled attacks; the quarantined ones come from Tier 0 and confident Tier 1
+decisions, not from the gray zone. 0.1 would be a reasonable choice for a customer who accepts ~2%
+flagged mail in exchange for catching more hijacked-account attacks. Rule
 severities were chosen earlier from per-rule training-period precision (section 3) and are not part of
 the sweep.
 
@@ -219,6 +232,6 @@ documented with proposed fixes rather than patched.
   demo whose text-only result is already deliberately limited. Future work.
 - **Bootstrap confidence intervals and a notebook:** replaced by a 5-seed rerun of the whole pipeline,
   which captures what actually varies here (which campaigns and hijacked accounts land in the test
-  period). Single runs moved BEC recall (blocked or bannered) between 88% and 97%; the headline is
-  93.8 ± 3.5%. Hyperparameters and the gray zone were selected on seed 42 only, so the other seeds are a
+  period). Single runs moved BEC recall (blocked or bannered) between 89% and 97%; the headline is
+  94.4 ± 3.0%. Hyperparameters and the gray zone were selected on seed 42 only, so the other seeds are a
   fair check of them.

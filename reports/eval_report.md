@@ -13,14 +13,14 @@ blank for the cascade rows. Hard negatives in test: 247.
 
 |  | precision | recall | f1 | pr_auc | bec_recall_blocked | bec_recall | hard_pos_recall | hard_neg_fp | legit_fp |
 |---|---|---|---|---|---|---|---|---|---|
-| Rules only (Tier 0 block) | 100.0% | 14.6% | 25.4% | 0.557 | 33.8% | 33.8% | 0.0% | 0 | 0 |
+| Rules only (Tier 0 block) | 100.0% | 30.8% | 47.1% | 0.557 | 39.2% | 39.2% | 0.0% | 0 | 0 |
 | Text only (TF-IDF + LR) | 65.9% | 83.2% | 73.5% | 0.897 | 79.7% | 79.7% | 61.1% | 67 | 157 |
-| Metadata only (no text or subject features) | 94.6% | 91.8% | 93.2% | 0.982 | 83.8% | 83.8% | 16.7% | 19 | 19 |
-| Full model (LightGBM, no subject features) | 98.0% | 95.9% | 96.9% | 0.991 | 86.5% | 86.5% | 33.3% | 7 | 7 |
-| Full model + subject features | 98.3% | 95.9% | 97.1% | 0.992 | 86.5% | 86.5% | 38.9% | 6 | 6 |
-| Cascade without intent check | 97.5% | 96.4% | 97.0% | – | 81.1% | 87.8% | 44.4% | 9 | 9 |
-| Full cascade | 97.5% | 96.4% | 97.0% | – | 83.8% | 87.8% | 44.4% | 9 | 9 |
-| Full cascade + async virus scan | 97.5% | 96.4% | 97.0% | – | 83.8% | 87.8% | 44.4% | 9 | 9 |
+| Metadata only (no text or subject features) | 94.9% | 92.0% | 93.4% | 0.981 | 85.1% | 85.1% | 16.7% | 18 | 18 |
+| Full model (LightGBM, no subject features) | 98.3% | 95.9% | 97.1% | 0.992 | 86.5% | 86.5% | 33.3% | 6 | 6 |
+| Full model + subject features | 98.3% | 95.6% | 96.9% | 0.992 | 86.5% | 86.5% | 33.3% | 6 | 6 |
+| Cascade without intent check | 97.5% | 96.7% | 97.1% | – | 82.4% | 89.2% | 44.4% | 9 | 9 |
+| Full cascade | 97.5% | 96.7% | 97.1% | – | 83.8% | 89.2% | 44.4% | 9 | 9 |
+| Full cascade + async virus scan | 97.5% | 96.7% | 97.1% | – | 83.8% | 89.2% | 44.4% | 9 | 9 |
 
 ## Per-class results (full cascade + async scan)
 
@@ -29,8 +29,8 @@ blank for the cascade rows. Hard negatives in test: 247.
 | legit | 99.2% | 99.4% | 99.3% | 1574 | 0.999 |
 | spam | 97.5% | 100.0% | 98.7% | 115 | 1.000 |
 | phishing | 100.0% | 95.2% | 97.5% | 104 | 0.999 |
-| bec | 94.2% | 87.8% | 90.9% | 74 | 0.961 |
-| malware | 93.2% | 97.2% | 95.2% | 71 | 0.997 |
+| bec | 94.3% | 89.2% | 91.7% | 74 | 0.961 |
+| malware | 93.2% | 97.2% | 95.2% | 71 | 0.996 |
 
 **BEC** is the class that matters most and is hardest: no links, no attachments to scan, often sent from a
 real or freemail account. BEC actions by scenario:
@@ -38,7 +38,7 @@ real or freemail account. BEC actions by scenario:
 |  | DELIVER | QUARANTINE | WARNING_BANNER |
 |---|---|---|---|
 | bec:direct_spoof | 0 | 4 | 0 |
-| bec:gift_cards | 3 | 20 | 2 |
+| bec:gift_cards | 2 | 20 | 3 |
 | bec:payroll | 0 | 2 | 0 |
 | bec:vendor_invoice | 0 | 18 | 0 |
 | bec:wire_freemail | 0 | 7 | 0 |
@@ -49,10 +49,10 @@ real or freemail account. BEC actions by scenario:
 
 |  | DELIVER | WARNING_BANNER | SPAM_FOLDER | QUARANTINE |
 |---|---|---|---|---|
-| legit | 1565 | 8 | 0 | 1 |
+| legit | 1565 | 7 | 0 | 2 |
 | spam | 0 | 0 | 115 | 0 |
 | phishing | 2 | 1 | 0 | 101 |
-| bec | 9 | 3 | 0 | 62 |
+| bec | 8 | 4 | 0 | 62 |
 | malware | 2 | 2 | 0 | 67 |
 
 ![Confusion matrix](confusion_matrix.png)
@@ -62,12 +62,12 @@ real or freemail account. BEC actions by scenario:
 Hard positives are attacks from real, trusted accounts or with copied legit wording; hard negatives
 are legit mail that looks risky. Recall on hard positives (any action but DELIVER):
 **44.4%**. Hard negatives
-blocked: **1**,
-bannered: **8**.
+blocked: **2**,
+bannered: **7**.
 
 |  | n | blocked | banner | delivered |
 |---|---|---|---|---|
-| hard_neg:encrypted_zip | 13 | 1 | 4 | 8 |
+| hard_neg:encrypted_zip | 13 | 2 | 3 | 8 |
 | hard_neg:exec_gift_cards | 21 | 0 | 0 | 21 |
 | hard_neg:exec_urgent_payment | 27 | 0 | 0 | 27 |
 | hard_neg:internal_tool | 16 | 0 | 0 | 16 |
@@ -89,21 +89,21 @@ bannered: **8**.
 
 |  | mean |SHAP| |
 |---|---|
-| text_score | 1.861 |
-| risky_attachments | 0.995 |
-| sender_domain_age_days | 0.944 |
-| payment_kw | 0.859 |
-| subject_body_sim | 0.712 |
-| topic_shift | 0.711 |
-| min_url_domain_age_days | 0.701 |
-| lookalike_score | 0.652 |
-| ip_score | 0.577 |
-| n_urls | 0.536 |
-| domain_volume_24h | 0.479 |
-| url_bad_verdict | 0.458 |
-| subject_caps_ratio | 0.366 |
-| sender_prior_msgs | 0.335 |
-| prior_exchanges | 0.289 |
+| text_score | 1.782 |
+| risky_attachments | 0.997 |
+| sender_domain_age_days | 0.925 |
+| payment_kw | 0.870 |
+| min_url_domain_age_days | 0.720 |
+| subject_body_sim | 0.715 |
+| topic_shift | 0.673 |
+| lookalike_score | 0.606 |
+| ip_score | 0.544 |
+| domain_volume_24h | 0.538 |
+| n_urls | 0.484 |
+| sender_prior_msgs | 0.454 |
+| url_bad_verdict | 0.437 |
+| subject_caps_ratio | 0.339 |
+| prior_exchanges | 0.300 |
 
 ### What the text model learned
 
@@ -133,15 +133,15 @@ masked before vectorising; bigrams never cross a sentence boundary).
 Wall time of the synchronous path per email, measured once: the mock WHOIS / IP / URL lookups really
 sleep their simulated latency and run concurrently (each with its own timeout) under the shared
 5000 ms deadline; past it the verdict is DELIVER (fail open). Mean CPU time:
-4.5 ms per email. Target: p99 under 2000 ms. Fail-open (deadline) verdicts in this run:
+4.6 ms per email. Target: p99 under 2000 ms. Fail-open (deadline) verdicts in this run:
 0.
 
 |  | p50 | p95 | p99 | max |
 |---|---|---|---|---|
-| wall time, ms | 14.8 | 30.0 | 38.1 | 107.2 |
+| wall time, ms | 14.6 | 30.5 | 40.7 | 87.5 |
 
-Decided at Tier 0 (before any model runs): 2.7%, Tier 1: 96.0%, Tier 2 (gray zone):
-1.3%.
+Decided at Tier 0 (before any model runs): 5.8%, Tier 1: 93.0%, Tier 2 (gray zone):
+1.2%.
 The virus scan runs asynchronously; it pulled 0 delivered emails after the fact: everything it detected had already been quarantined by the synchronous path.
 
 ## Estimated variable cost vs the $0.30/mailbox/month budget
@@ -156,17 +156,17 @@ mail that was not already quarantined.
 The synthetic data has ~0.56 emails per mailbox per day. The **base case** uses the specified
 5/day; the **projection** uses 120/day (a heavy inbox). Both reuse the per-email rates observed in
 this replay: 2.6 lookups, 0.26 attachments, 0.025 sandbox submissions and
-4.5 ms CPU per email (×3.0 overhead at $0.04/vCPU-hour).
+4.6 ms CPU per email (×3.0 overhead at $0.04/vCPU-hour).
 
 |  | base (5/day), as implemented | base (5/day), with proposed savings | projection (120/day), as implemented | projection (120/day), with proposed savings |
 |---|---|---|---|---|
-| Compute (features, rules, models) | 0.0000 | 0.0000 | 0.0005 | 0.0005 |
+| Compute (features, rules, models) | 0.0000 | 0.0000 | 0.0006 | 0.0006 |
 | Reputation / WHOIS lookups | 0.0396 | 0.0040 | 0.9503 | 0.0950 |
-| Attachment scanning | 0.0791 | 0.0048 | 1.8985 | 0.1148 |
-| **Total** | 0.1187 | 0.0088 | 2.8493 | 0.2103 |
-| Share of budget | 0.3957 | 0.0292 | 9.4978 | 0.7011 |
+| Attachment scanning | 0.0791 | 0.0047 | 1.8985 | 0.1129 |
+| **Total** | 0.1187 | 0.0087 | 2.8493 | 0.2085 |
+| Share of budget | 0.3957 | 0.0290 | 9.4978 | 0.6949 |
 
 (The last row is the share of the $0.30 budget.) **Headroom for a smarter Tier 2**, base case as
-implemented: $0.18/mailbox/month; with 1.3% of mail in the gray zone that is
-1.9 emails per mailbox per month, so up to **$0.09 per gray-zone email** for embeddings
+implemented: $0.18/mailbox/month; with 1.2% of mail in the gray zone that is
+1.8 emails per mailbox per month, so up to **$0.10 per gray-zone email** for embeddings
 or an LLM call.
