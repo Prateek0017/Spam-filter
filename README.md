@@ -6,7 +6,7 @@ $0.30 per mailbox per month. I built it as a cascade: cheap rules first, then a 
 then a second look at the roughly 1% of mail the model is unsure about. Everything runs locally on
 synthetic data. Across five data seeds, the full cascade detects 94.4 ± 3.0% of BEC emails (91.8 ±
 4.8% blocked outright) and flags 7.2 ± 2.4 of roughly 1,550 legit test emails per run, with a p99
-latency of 42.8 ± 4.5 ms. The estimated variable cost as implemented is $0.1154 per mailbox per month.
+latency of 42.8 ± 4.5 ms. The estimated variable cost as implemented is $0.115 per mailbox per month.
 
 ## The problem
 
@@ -14,7 +14,7 @@ We run an email platform for businesses. Our customers receive spam, phishing, a
 emails, where someone pretends to be their boss or a vendor, usually to get money moved. For every
 inbound email we pick an action and give the admin a reason they can read.
 
-Gmail and Microsoft 365 hand us each message and wait at most 5 seconds; if we have not answered, the
+Gmail and Microsoft 365 hand us each message and wait at most 5 seconds. If we have not answered, the
 mail is delivered as not spam. The budget is $0.30 per
 mailbox per month. A customer has 30 mailboxes, each receiving 5 emails a day. There is a virus-scan
 API for attachments, and it is slow (the mock here takes about 2.5 seconds at the median). Customers
@@ -48,7 +48,7 @@ model runs.
 Tier 1 is a 5-class LightGBM model (legit, spam, phishing, BEC, malware). It uses a TF-IDF and logistic
 regression text score plus 30 other features: authentication, domain age, IP reputation, link and
 attachment signals, keyword counts, relationship history and the subject line. Each feature only sees
-mail that arrived earlier. Below 0.3 P(malicious) the email is delivered; at 0.8 or above it goes to
+mail that arrived earlier. Below 0.3 P(malicious) the email is delivered. At 0.8 or above it goes to
 the spam folder or quarantine, depending on the predicted class.
 
 Tier 2 handles scores from 0.3 to 0.8. It checks whether the email asks for money, gift cards, a login
@@ -75,8 +75,8 @@ flowchart LR
     M -- "P at or above 0.8" --> X[SPAM_FOLDER or<br/>QUARANTINE by class]
     M -- "P from 0.3 to 0.8" --> I{"Tier 2 intent check:<br/>asks for money, gift cards, login<br/>or a phone / chat contact?<br/>relationship looks off?"}
     I -- "both, untrusted sender" --> Q
-    I -- "both, established sender" --> B
-    I -- one --> B[WARNING_BANNER]
+    I -- "both, established sender" --> B[WARNING_BANNER]
+    I -- one --> B
     I -- neither --> D
     V -- "infected, after delivery" --> P[Pull from mailbox]
 ```
@@ -97,8 +97,9 @@ I had no real customer mail, so I generated it: 10 tenants (one per industry) wi
 over 60 days. That is 10,000 emails, 78% legit, 8% spam, 6% phishing, 4% BEC and 4% malware, with 2% of
 labels flipped to mimic wrong user reports. A sent-mail log lets trust come from what a mailbox
 actually sent rather than from a quoted thread an attacker could forge. The hard cases matter most:
-legit emails that look risky (a real CFO asking for an urgent wire), and attacks that look normal
-(hijacked vendor accounts, credential pages on real SharePoint, ordinary business wording).
+hard negatives are legit mail that looks risky (a real CFO asking for an urgent wire), and hard
+positives are attacks designed to look normal (hijacked vendor accounts, credential pages on real
+SharePoint, ordinary business wording).
 
 The emails come from templates with a few phrasings each, so the model sees far less variety than real
 mail, and real-world precision and recall would be lower. The volume is also low, about 0.56 emails per
@@ -132,7 +133,7 @@ Together they work. The full model keeps BEC recall above 92% while flagging 3.2
 
 The cascade adds 2.0 points of BEC recall (blocked or bannered) and 4.5 points of hard-positive recall
 over the model, for 4.0 more legit emails flagged per run. The intent check does less than I expected.
-Bannering every gray-zone email detects exactly as much; what the intent check changes is how many
+Bannering every gray-zone email detects exactly as much. What the intent check changes is how many
 attacks get blocked instead of bannered (BEC blocked rises from 88.4% to 91.8%), without flagging more
 legit mail. The subject-line features have no measurable effect.
 
@@ -150,15 +151,15 @@ the deadline. In seed 42 the p50 is 14.6 ms, the p95 30.5 ms, and CPU time about
 
 The cost is an estimated variable cost under stated deployment assumptions, not a measurement. As
 implemented, every reputation lookup is a paid call and every attachment goes through the single
-scanner, priced as a sandbox scan. That comes to $0.1154 ± 0.0030 per mailbox per month at the
+scanner, priced as a sandbox scan. That comes to $0.115 per mailbox per month at the
 specified 5 emails a day, 38% of the budget.
 
 Proposed, not implemented: a lookup cache, an attachment hash cache, a cheap antivirus scan on every
 file, and the sandbox only for risky file types on mail that was not already quarantined. With those
-the estimate is $0.0083 ± 0.0006 (3%). For a heavy inbox of 120 emails a day (Radicati reports 122 sent
+the estimate is $0.008 (3%). For a heavy inbox of 120 emails a day (Radicati reports 122 sent
 and received per business user per day, [2015 report](https://www.radicati.com/wp/wp-content/uploads/2015/02/Email-Statistics-Report-2015-2019-Executive-Summary.pdf)),
-the implemented design would cost $2.7704 ± 0.0724, more than 9 times the budget, and the proposed
-savings bring it to $0.2000 ± 0.0142 (67%). Both volumes reuse the per-email rates observed in the
+the implemented design would cost $2.77, more than 9 times the budget, and the proposed
+savings bring it to $0.20 (67%). Both volumes reuse the per-email rates observed in the
 replay. Prices and sources are in [DESIGN.md](DESIGN.md#estimated-variable-cost).
 
 ## What I found and fixed along the way
@@ -177,7 +178,7 @@ and each tier had its own definition: Tier 0 used the raw count of received mail
 clean delivery, and DMARC-failing deliveries still counted. One of my hand-written emails exposed
 another hole, a DMARC-failing spoof of a colleague inheriting that colleague's trust. There is now one
 trust function, with a regression test for each case. The review also found the deadline was only
-checked after the model returned; the whole decision now runs under a hard timeout.
+checked after the model returned. The whole decision now runs under a hard timeout.
 
 ## Limitations and what I would do next
 
@@ -186,7 +187,7 @@ a thin real-world check (several overlap generator scenarios).
 
 The main miss is BEC from a hijacked real vendor account (6 of 7 delivered in seed 42). It passes
 authentication and sits in a real thread, and because the vendor is established, Tier 2 can at most
-banner it, so that Tier 2 never quarantines a real vendor's payment request. Next I would flag any email that
+banner it. That is a deliberate trade-off, so a real vendor's payment request is never quarantined. Next I would flag any email that
 changes bank details, with out-of-band verification, and track each sender's usual writing style and
 sending IPs.
 
