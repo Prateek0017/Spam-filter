@@ -1,4 +1,4 @@
-# bec-guard
+# Spam Filter- bec-guard
 
 bec-guard is a spam, phishing and business email compromise (BEC) filter for a multi-tenant B2B email
 platform. It decides what to do with every inbound email within a 5 second window and a budget of
