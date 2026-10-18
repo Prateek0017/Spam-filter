@@ -235,3 +235,115 @@ documented with proposed fixes rather than patched.
   period). Single runs moved BEC recall (blocked or bannered) between 89% and 97%; the headline is
   94.4 ± 3.0%. Hyperparameters and the gray zone were selected on seed 42 only, so the other seeds are a
   fair check of them.
+
+## 15. Reference tables
+
+Detail moved out of the README. Single-run tables are seed 42 (`make eval`); the full reports are
+[reports/eval_report.md](reports/eval_report.md), [reports/challenge.md](reports/challenge.md),
+[reports/validation.md](reports/validation.md) and [reports/multiseed.md](reports/multiseed.md).
+
+### Per-class results (seed 42, full cascade after the async scan)
+
+| Class | Precision | Recall | F1 | Support | PR-AUC (LightGBM) |
+|---|---|---|---|---|---|
+| legit | 99.2% | 99.4% | 99.3% | 1574 | 0.999 |
+| spam | 97.5% | 100.0% | 98.7% | 115 | 1.000 |
+| phishing | 100.0% | 95.2% | 97.5% | 104 | 0.999 |
+| **BEC** | **94.3%** | **89.2%** | **91.7%** | 74 | 0.961 |
+| malware | 93.2% | 97.2% | 95.2% | 71 | 0.996 |
+
+Classic BEC patterns (CEO gift cards, wire requests from lookalike and freemail domains, payroll
+diversion, direct spoofing, vendor-invoice fraud) were detected 65 of 67 times. Most BEC misses came
+from **compromised real vendor accounts**: 6 of 7 delivered, 1 bannered.
+
+**Hard cases.** Hard positives: 44.4% detected (compromised partner accounts 3/5, compromised vendor
+1/7, password-protected zips 4/6). Hard negatives: 247 in test, 2 quarantined (legit
+password-protected archives), 7 bannered (4 real vendor payment requests, 3 legit archives).
+
+**What drives the model (SHAP, top 10):** text_score, risky_attachments, sender_domain_age_days,
+payment_kw, min_url_domain_age_days, subject_body_sim, topic_shift, lookalike_score, ip_score,
+domain_volume_24h.
+Chart: [reports/shap_top_features.png](reports/shap_top_features.png).
+
+### Subject-line features
+
+| Feature | What it measures |
+|---|---|
+| `fake_reply` | Subject starts with RE:/FW:/Fwd: but this mailbox and sender have never exchanged mail (history store, not the quoted thread) |
+| `subject_body_sim` | TF-IDF cosine similarity between subject and body |
+| `subject_kw` | Urgency / money words in the subject (separate from the body keyword counts) |
+| `subject_caps_ratio`, `subject_exclaims`, `subject_emojis` | Style: share of capital letters, "!" count, emoji count |
+
+### Top TF-IDF terms (seed 42)
+
+| # | Toward attack | Toward legit |
+|---|---|---|
+| 1 | purchase | unchanged |
+| 2 | your | are unchanged |
+| 3 | purchase order | payment details |
+| 4 | document | hi |
+| 5 | last email | tuesday |
+| 6 | book time | payment |
+| 7 | book | details are |
+| 8 | time here | from |
+| 9 | last | on the |
+| 10 | on my | available |
+| 11 | my last | delivery |
+| 12 | here url | on |
+| 13 | here | are |
+| 14 | account | the |
+| 15 | brightcart | capabilities deck |
+
+Sensible: "click here" links ("here url"), spam follow-ups ("my last email", "book time"), malware lures
+("purchase order", "document"), credential lures ("account"), and on the legit side "payment details are
+unchanged" from genuine vendor mail. "payment" leans legit because real payment chasers far outnumber
+fraudulent ones, which is exactly why text alone can't catch BEC. Not sensible, and left visible on
+purpose: "brightcart" is one tenant's company name (spam and phishing templates name the company),
+"capabilities deck" comes from one hard-negative template, and "tuesday", "hi" and function words
+reflect template style. Three earlier versions of this list exposed leaks that were fixed: sender
+names and company suffixes ("Ltd", "IT Service Desk"), reply prefixes ("fw", "fwd") once fake replies
+were added, and a literal "budget review" topic that only fake replies used.
+
+### Hand-written challenge set, case by case (seed 42)
+
+| Email | Truth | Action | Tier | Why |
+|---|---|---|---|---|
+| Fake remote job, deposit via Telegram | phishing | QUARANTINE | 1 | model confident (0.98) |
+| Lottery win, agent on WhatsApp | phishing | QUARANTINE | 1 | model confident (0.88), auth failure |
+| Sextortion, Bitcoin wallet, spoofs the recipient's own address | phishing | QUARANTINE | 2 | money request + no trust (DMARC fails, so the spoofed address inherits none) |
+| SMS-style parcel notice with a link | phishing | WARNING_BANNER | 2 | new sender, auth failure |
+| Callback scam, phone number only | phishing | QUARANTINE | 1 | model confident (1.00) |
+| BEC in Spanish from Gmail with the CEO's name | BEC | QUARANTINE | 1 | model confident (0.91), display-name mismatch |
+| Emoji-heavy internal note | legit | DELIVER | 1 | |
+| Terse email from a new address at a known vendor domain | legit | DELIVER | 1 | |
+| First-time customer on Gmail asking for a refund | legit | **QUARANTINE** | 1 | model confident (0.94): "new freemail sender + money request" is the scam pattern |
+| HR sign-in reminder with a Workday link | legit | DELIVER | 1 | |
+
+### Estimated variable cost
+
+| $/mailbox/month | Base, as implemented | Base, with proposed savings | Projection (120/day), as implemented | Projection, with proposed savings |
+|---|---|---|---|---|
+| **5 seeds** | **0.115 ± 0.003 (38%)** | 0.008 ± 0.001 (3%) | 2.77 ± 0.07 (923%) | 0.200 ± 0.014 (67%) |
+| Seed 42: compute | 0.0000 | 0.0000 | 0.0006 | 0.0006 |
+| Seed 42: reputation / WHOIS lookups | 0.0396 | 0.0040 | 0.9503 | 0.0950 |
+| Seed 42: attachment scanning | 0.0791 | 0.0047 | 1.8985 | 0.1129 |
+| Seed 42: total | 0.1187 (40%) | 0.0087 (3%) | 2.8493 (950%) | 0.2085 (69%) |
+
+Assumptions (all in `configs/default.yaml`; measured values come from the eval run):
+
+| Assumption | Value | Source |
+|---|---|---|
+| Inbound emails per mailbox per day (base) | 5 | The assignment's specification (30 mailboxes per customer). |
+| Inbound emails per mailbox per day (projection) | 120 | A heavy business inbox. Radicati reports 122 emails *sent and received* per business user per day ([2015 report](https://www.radicati.com/wp/wp-content/uploads/2015/02/Email-Statistics-Report-2015-2019-Executive-Summary.pdf)) and ~78 *received* ([2012 survey](https://www.radicati.com/?p=8785)), so 120 inbound is pessimistic. |
+| Synthetic rate | ~0.56/day | Measured: 10,000 emails / 300 mailboxes / 60 days. Not used for cost; per-email rates are. |
+| Compute price | $0.04 per vCPU-hour | AWS c7g.large (2 vCPU, on-demand, us-east-1) lists at $0.0725/hour ≈ $0.036/vCPU-hour per third-party trackers ([DoIT](https://www.doit.com/compute/spot/us-east-1/c7g.large), [Holori](https://calculator.holori.com/aws/ec2/c7g.large/us-east-1)); rounded up. |
+| CPU per email | ~4.6 ms | Measured (process CPU time of the sync path). |
+| Overhead on measured compute | 3× | Assumption: MIME parsing, queueing and retries are not in the measured time. |
+| Lookups per email | 2.6 | Measured: IP + sender WHOIS + URL reputation and WHOIS per unique link. |
+| Price per lookup | $0.0001 | Assumption: blend of self-hosted feeds and commercial reputation APIs; prices vary widely. |
+| Lookup cache hit rate (proposed) | 90% | Assumption: senders, IPs and link domains repeat heavily within hours. |
+| Attachments per email | 0.26 | Measured on the synthetic test set (likely higher than real mail). |
+| Scanner / sandbox price | $0.002 per file | Assumption: order of magnitude for a commercial sandbox. |
+| Static AV scan (proposed) | $0.00005 per file | Assumption: self-hosted signature scanner, CPU cost only. |
+| Sandbox submissions (proposed) | 0.025 per email | Measured: archives, macro documents and executables on mail not already quarantined. |
+| Attachment hash cache hit rate (proposed) | 50% | Assumption: the same files (invoices, decks, campaign payloads) reach many mailboxes. |

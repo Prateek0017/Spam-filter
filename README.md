@@ -1,89 +1,67 @@
 # bec-guard
 
-A tiered spam / phishing / BEC (business email compromise) filter for a multi-tenant B2B email
-platform. Cheap rules and a gradient-boosted model handle almost all mail in tens of milliseconds;
-only gray-zone emails get a second look; a slow attachment scan runs in the background. Everything
-runs locally, no API keys, on reproducible synthetic data.
+bec-guard is a spam, phishing and business email compromise (BEC) filter for a multi-tenant B2B email
+platform. It decides what to do with every inbound email within a 5 second window and a budget of
+$0.30 per mailbox per month. I built it as a cascade: cheap rules first, then a gradient-boosted model,
+then a second look at the roughly 1% of mail the model is unsure about. Everything runs locally on
+synthetic data. Across five data seeds, the full cascade detects 94.4 ± 3.0% of BEC emails (91.8 ±
+4.8% blocked outright) and flags 7.2 ± 2.4 of roughly 1,550 legit test emails per run, with a p99
+latency of 42.8 ± 4.5 ms. The estimated variable cost as implemented is $0.1154 per mailbox per month.
 
-**Estimated variable cost** (under the deployment assumptions stated [below](#estimated-variable-cost)),
-at the specified 5 inbound emails per mailbox per day: **$0.115 per mailbox per month as implemented
-(38% of the $0.30 budget)**, or $0.008 (3%) with the proposed caching and selective sandboxing.
+## The problem
 
-## Key result
+We run an email platform for businesses. Our customers receive spam, phishing, and impersonation
+emails, where someone pretends to be their boss or a vendor, usually to get money moved. For every
+inbound email we pick an action and give the admin a reason they can read.
 
-Mean ± standard deviation over **5 seeds**: each seed regenerates the synthetic data and retrains every
-model, then evaluates on its own held-out last 12 days (~1,940 emails, ~380 malicious, ~70 BEC; true
-labels). "Detected" means any action other than DELIVER; models were trained on labels with 2% noise.
-BEC recall is shown twice: **blocked** (spam folder or quarantine) and **blocked or bannered**. Legit
-flagged is a count per run (~1,550 legit test emails each).
+Gmail and Microsoft 365 hand us each message and wait at most 5 seconds; if we have not answered, the
+mail is delivered as not spam. The budget is $0.30 per
+mailbox per month. A customer has 30 mailboxes, each receiving 5 emails a day. There is a virus-scan
+API for attachments, and it is slow (the mock here takes about 2.5 seconds at the median). Customers
+range from manufacturing to pharma to legal, so one rule set tuned for one will not fit the others.
 
-| Approach | PR-AUC | Precision | Recall | BEC recall, blocked | BEC recall, blocked or bannered | Hard-positive recall | Legit flagged |
-|---|---|---|---|---|---|---|---|
-| Rules only (Tier 0 block) | 0.582 ± 0.021 | 99.4 ± 1.0% | 28.8 ± 3.0% | 31.8 ± 6.6% | 31.8 ± 6.6% | 0.0 ± 0.0% | 0.8 ± 1.3 |
-| Text only (TF-IDF + LR) | 0.895 ± 0.016 | 63.3 ± 2.7% | 85.6 ± 2.4% | 82.3 ± 6.1% | 82.3 ± 6.1% | 65.8 ± 5.6% | 190.8 ± 23.3 |
-| Metadata only (no text or subject features) | 0.984 ± 0.006 | 95.8 ± 1.5% | 92.9 ± 1.1% | 85.3 ± 3.4% | 85.3 ± 3.4% | 39.0 ± 16.7% | 15.8 ± 5.8 |
-| Full model (LightGBM, no subject features) | 0.994 ± 0.004 | 99.1 ± 0.6% | 97.2 ± 1.1% | 92.6 ± 3.6% | 92.6 ± 3.6% | 59.8 ± 16.0% | 3.2 ± 2.2 |
-| Full model + subject features | **0.994 ± 0.004** | 99.1 ± 0.6% | 97.1 ± 1.4% | 92.4 ± 4.4% | 92.4 ± 4.4% | 59.2 ± 15.7% | 3.2 ± 2.2 |
-| Cascade without intent check (gray zone → banner) | – | 98.1 ± 0.6% | 97.7 ± 0.9% | 88.4 ± 4.5% | 94.4 ± 3.0% | 63.7 ± 11.5% | 7.2 ± 2.4 |
-| **Full cascade** (rules → model → intent check) | – | 98.1 ± 0.6% | 97.7 ± 0.9% | **91.8 ± 4.8%** | **94.4 ± 3.0%** | **63.7 ± 11.5%** | 7.2 ± 2.4 |
+## What makes it hard
 
-For score rows, "blocked" and "blocked or bannered" are the same (score ≥ 0.5). Per-seed values:
-[reports/multiseed.md](reports/multiseed.md) (`make multiseed`, ~5 minutes).
+Spam and most phishing give themselves away: bulk sending, fresh domains, bad links, blocklisted IPs.
+Impersonation does not. A fake CEO writing from Gmail passes SPF and DKIM, because Gmail really sent
+it, and the wording is the same plain business language real finance teams use ("can you push this
+wire through today?"). Content alone is not enough. What matters is who is asking for what, compared
+with how this sender normally behaves toward this company.
 
-**Hand-written challenge set** (10 emails written by hand, mostly in styles the generator does not use,
-never used for tuning): **5.0 ± 0.7 of 6 attacks caught, 3 of 4 legit delivered cleanly** in every seed.
-See [Hand-written challenge set](#hand-written-challenge-set).
+## How I approached it
 
-- **Text alone is not enough.** It finds most attacks only by also flagging ~191 legit emails per run
-  (12% of legit mail), because legit invoices, payment chasers and IT notices use the same words.
-- **Relationship + infrastructure features carry BEC.** Who is writing (established or not, prior
-  exchanges, lookalike or freemail domain, display-name and reply-to tricks) is what separates a real
-  CFO's urgent wire request from a fake one. Combining them with the text score gives the best of both.
-- **The cascade adds a little on top of the model:** +2.0 points BEC recall (blocked or bannered) and
-  +4.5 points hard-positive recall, for ~4 more legit emails flagged per run (warning banners).
-- **What the intent check itself adds:** with the same rules and thresholds, bannering every gray-zone
-  email detects exactly as much; the intent check turns banners into quarantines for attacks (BEC
-  blocked 88.4% → 91.8%) without flagging more legit mail.
-- **Subject-line features have no measurable effect here** (PR-AUC 0.994 with or without, same legit
-  flagged). See [Subject-line features](#subject-line-features).
-- **Hijacked real accounts remain hard.** Compromised-vendor BEC is the main miss; see
-  [Limitations](#limitations).
-- **Why five seeds:** each run has only ~70 BEC and ~25 hard-positive test emails, so one email moves
-  BEC recall by ~1.4 points and hard-positive recall by ~4. Single runs moved BEC recall (blocked or
-  bannered) between 89% and 97%; the standard deviations above are the honest error bars.
+The budget sets the architecture. $0.30 over about 150 emails a month (30 days at 5 a day) leaves
+roughly $0.002 per email for compute, lookups and attachment scanning together. That rules out a hosted
+LLM on every email, so I built a cascade in which each stage only sees what the previous one could not
+settle.
 
-The detailed sections below (per-class results, hard cases, SHAP, latency, cost table, demo) come from
-a **single run, seed 42**; the full report is [reports/eval_report.md](reports/eval_report.md).
+The whole decision runs under a hard 5 second timeout, with WHOIS, IP and URL reputation lookups in
+parallel. If time runs out, the email is delivered (fail open, as the provider would do). Attachments
+go to the virus scanner on arrival; the cascade never waits for it, and if the scanner later finds
+malware the email is pulled from the mailbox.
 
-## Quickstart
+Tier 0 is seven rules, such as lookalike domain, authentication failure and reply-to mismatch. Each
+adds a reason code. Two of them (lookalike domain, and a young domain sending in bulk) are precise
+enough to quarantine on their own, and only for senders who are not established. They decide before any
+model runs.
 
-```bash
-make setup               # Python 3.11 venv via uv (macOS: run `brew install libomp` once first)
-make data train eval     # ~10k synthetic emails -> models/ -> reports/   (~1 minute)
-make demo                # Streamlit app on http://localhost:8501
-```
+Tier 1 is a 5-class LightGBM model (legit, spam, phishing, BEC, malware). It uses a TF-IDF and logistic
+regression text score plus 30 other features: authentication, domain age, IP reputation, link and
+attachment signals, keyword counts, relationship history and the subject line. Each feature only sees
+mail that arrived earlier. Below 0.3 P(malicious) the email is delivered; at 0.8 or above it goes to
+the spam folder or quarantine, depending on the predicted class.
 
-`make test` runs the test suite, `make validate` reruns model selection (see
-[DESIGN.md](DESIGN.md#9-model-selection-is-a-script)), and `make multiseed` reruns everything over 5 seeds.
-**macOS:** LightGBM needs the OpenMP runtime; without `brew install libomp`, importing it fails with
-`Library not loaded: @rpath/libomp.dylib`.
+Tier 2 handles scores from 0.3 to 0.8. It checks whether the email asks for money, gift cards, a login
+or contact by phone or chat app, and whether the relationship looks off (an untrusted sender, a sharp
+change in topic, a reply-to or display-name mismatch). Both means quarantine, one means a warning
+banner, neither means delivery. A TF-IDF intent classifier does the first check, and a keyword layer
+for currency amounts, phone numbers, WhatsApp and Telegram overrides it when it fires.
 
-## The problem and the constraints
-
-A B2B email provider must classify every inbound email into **DELIVER**, **WARNING_BANNER**,
-**SPAM_FOLDER** or **QUARANTINE**, with reason codes the customer's admin can read.
-
-- **Budget: $0.30 per mailbox per month.** At the specified 5 inbound emails per mailbox per day
-  (30 mailboxes per customer) that is 150 emails, so **$0.002 per email** for compute, reputation
-  lookups and attachment scanning together. A heavy inbox (a 120/day projection) leaves $0.00008 per
-  email, where a hosted LLM call on every email is out of reach.
-- **Latency: the provider gives up after 5 s** and delivers anyway (fail open). Target p99 < 2 s.
-- **BEC is the expensive failure.** It has no malicious link or file to detect; the signal is
-  *who* is asking *what*, compared with how this sender normally behaves.
-- **Multi-tenant.** Every tenant has its own executives, vendors and correspondents, so "normal"
-  must be learned per tenant from point-in-time history.
-
-## Architecture
+Trust has one definition, used by every tier. A sender is established if this mailbox has written to
+them, or if at least 3 of their earlier emails were delivered without a banner and passed DMARC.
+Quarantined, spam-foldered or bannered mail never earns trust, and a message failing DMARC is never
+established. Tier 0 only blocks senders who are not established, and Tier 2 banners established
+senders rather than quarantining them, so a real vendor's payment request still reaches the inbox.
 
 ```mermaid
 flowchart LR
@@ -93,9 +71,9 @@ flowchart LR
     S --> R{Tier 0<br/>rules}
     R -- "block rule + sender not established<br/>(no model runs)" --> Q[QUARANTINE]
     R -- otherwise --> M[Tier 1<br/>text score + LightGBM]
-    M -- "P < 0.3" --> D
-    M -- "P ≥ 0.8" --> X[SPAM_FOLDER or<br/>QUARANTINE by class]
-    M -- "0.3 ≤ P < 0.8" --> I{"Tier 2 intent check:<br/>asks for money, gift cards, login<br/>or a phone / chat contact?<br/>relationship looks off?"}
+    M -- "P below 0.3" --> D
+    M -- "P at or above 0.8" --> X[SPAM_FOLDER or<br/>QUARANTINE by class]
+    M -- "P from 0.3 to 0.8" --> I{"Tier 2 intent check:<br/>asks for money, gift cards, login<br/>or a phone / chat contact?<br/>relationship looks off?"}
     I -- "both, untrusted sender" --> Q
     I -- "both, established sender" --> B
     I -- one --> B[WARNING_BANNER]
@@ -103,335 +81,136 @@ flowchart LR
     V -- "infected, after delivery" --> P[Pull from mailbox]
 ```
 
-| Tier | What it does | Share of test mail (seed 42) |
-|---|---|---|
-| deadline | The whole decision runs under a hard 5 s timeout; WHOIS / IP / URL lookups run concurrently, each with its own timeout. At the deadline classify returns DELIVER (fail open), whatever is still running; the async scan can still pull the email. | 0 fail-open verdicts |
-| 0: rules | 7 reason-coded rules. Two can quarantine alone (lookalike domain, young domain sending in bulk), only for senders who are not established, and before any model runs. None looks at the subject. | 5.8% |
-| 1: model | TF-IDF text score + 30 other features in a LightGBM classifier (5 classes). | 93.0% |
-| 2: intent check | Gray-zone scores only: what the email asks for (classifier + keyword layer) plus whether the relationship looks off. Never quarantines an established correspondent. | 1.2% |
-| async | Attachment scan; never delays delivery, pulls infected mail afterwards. | 0.26 attachments per email |
+Every email ends in one of four actions:
 
-**Trust is earned, not received, and defined once.** A sender is *established* when this mailbox has
-written to them (sent-mail log), or when at least 3 of their earlier emails were **delivered** without
-a banner and passed DMARC. One function (`FeatureExtractor.is_established`) answers this for every
-tier: Tier 0 block rules only act on senders who are not established, the model's `untrusted_sender`
-feature is its negation, and Tier 2 treats non-established senders as new and never quarantines an
-established one. Quarantined, spam-foldered or bannered mail never earns trust, so a stranger's or a
-lookalike's repeated attempts stay blockable, and a message failing DMARC is never established (its
-From address may be spoofed).
+- DELIVER: normal delivery.
+- WARNING_BANNER: delivered with a warning shown to the user.
+- SPAM_FOLDER: moved to spam (used for spam).
+- QUARANTINE: held back from the user (phishing, BEC and malware).
 
-## How it works
+In the seed 42 test run, Tier 0 decided 5.8% of mail, Tier 1 93.0% and Tier 2 1.2%. The design
+choices and the evidence behind them are in [DESIGN.md](DESIGN.md).
 
-**Synthetic data** (`src/data/`). 10 tenants (one per industry) × 30 mailboxes, 60 days, 10,000 emails
-(~0.56 emails per mailbox per day): 78% legit, 8% spam, 6% phishing, 4% BEC, 4% malware. Attacks arrive
-as campaigns (bulk spam across tenants, targeted BEC). It includes hard negatives (real CFO urgent
-wires, vendor payment chasers, IT password notices, staff writing from personal Gmail, a third-party
-tool failing DMARC, recruiters talking about fees with a phone number in the signature) and hard
-positives (hijacked vendor and partner accounts, credential pages on real SharePoint, password-protected
-zips). Phishing includes advance-fee and fake-job scams (a too-good offer, an upfront fee in some
-currency, "message us on WhatsApp") with varied wording. 2% label noise, and threat intel for the
-mocked WHOIS / IP / URL / AV services. A **sent-mail log** records the tenant's real replies, so "have
-these two people actually corresponded?" can be answered from history. Fully seeded.
+## Data
 
-**Rules** (`src/rules/engine.py`): auth failure, internal-domain spoof, employee display name from
-outside, lookalike domain (rapidfuzz vs the tenant's domain, its vendors and major brands), young
-domain + high volume, blocklisted IP, reply-to mismatch. Each returns a reason code. Rules whose
-precision on the training period was not near-perfect only add reasons; they never decide alone.
+I had no real customer mail, so I generated it: 10 tenants (one per industry) with 30 mailboxes each,
+over 60 days. That is 10,000 emails, 78% legit, 8% spam, 6% phishing, 4% BEC and 4% malware, with 2% of
+labels flipped to mimic wrong user reports. A sent-mail log lets trust come from what a mailbox
+actually sent rather than from a quoted thread an attacker could forge. The hard cases matter most:
+legit emails that look risky (a real CFO asking for an urgent wire), and attacks that look normal
+(hijacked vendor accounts, credential pages on real SharePoint, ordinary business wording).
 
-**Point-in-time features** (`src/features/extract.py`). 31 features computed by walking inbound mail
-and the sent-mail log in time order: each email only sees history from earlier messages (sender's
-prior messages to this tenant, prior exchanges with this mailbox in either direction, domain volume
-in the last 24 h, topic shift vs the sender's past mail). The quoted thread inside an email is never
-trusted, because attackers forge it. A test checks that adding future emails never changes past
-features. The split is by time (last 12 days are test). The first 7 days are excluded from LightGBM
-training only, because every sender looks new there; the text and intent models do train on them.
+The emails come from templates with a few phrasings each, so the model sees far less variety than real
+mail, and real-world precision and recall would be lower. The volume is also low, about 0.56 emails per
+mailbox per day. As a small check on generalization I wrote 10 emails by hand, mostly in styles the
+generator does not use (sextortion, a callback scam, BEC in Spanish). They are only evaluated, never
+used for tuning.
 
-**Missing values get a typical value.** Some features have nothing to measure: topic shift for a
-sender with no earlier mail, link age for an email without links, any lookup that timed out. Left as
-NaN, LightGBM learned that "missing" itself means attack (a missing topic shift pushed +0.175 toward
-attack, because new senders are mostly attackers in training). The model now receives the training
-median instead. That supplies a typical value, not a guaranteed neutral contribution: in seed 42 a
-missing topic shift still pushes +0.039 and a missing link age −0.079 on average. "New sender" is
-carried by the explicit `untrusted_sender` feature. Rules still see the raw value, so a timeout never
-fires a rule.
+## Results
 
-### Subject-line features
+Each run tests on its last 12 days (about 1,940 emails, 380 malicious, 70 BEC). Numbers are mean ±
+standard deviation over 5 seeds; each seed regenerates the data and retrains every model. "Detected"
+means any action other than DELIVER. Legit flagged is a count per run, out of about 1,550 legit emails.
+Models train on the noisy labels; metrics use the true labels.
 
-Six features, used by the model only (no rule acts on the subject):
+| Approach | PR-AUC | Precision | Recall | BEC recall, blocked | BEC recall, blocked or bannered | Hard-positive recall | Legit flagged |
+|---|---|---|---|---|---|---|---|
+| Rules only (Tier 0 block) | 0.582 ± 0.021 | 99.4 ± 1.0% | 28.8 ± 3.0% | 31.8 ± 6.6% | 31.8 ± 6.6% | 0.0 ± 0.0% | 0.8 ± 1.3 |
+| Text only (TF-IDF + LR) | 0.895 ± 0.016 | 63.3 ± 2.7% | 85.6 ± 2.4% | 82.3 ± 6.1% | 82.3 ± 6.1% | 65.8 ± 5.6% | 190.8 ± 23.3 |
+| Metadata only (no text or subject features) | 0.984 ± 0.006 | 95.8 ± 1.5% | 92.9 ± 1.1% | 85.3 ± 3.4% | 85.3 ± 3.4% | 39.0 ± 16.7% | 15.8 ± 5.8 |
+| Full model (LightGBM, no subject features) | 0.994 ± 0.004 | 99.1 ± 0.6% | 97.2 ± 1.1% | 92.6 ± 3.6% | 92.6 ± 3.6% | 59.8 ± 16.0% | 3.2 ± 2.2 |
+| Full model + subject features | 0.994 ± 0.004 | 99.1 ± 0.6% | 97.1 ± 1.4% | 92.4 ± 4.4% | 92.4 ± 4.4% | 59.2 ± 15.7% | 3.2 ± 2.2 |
+| Cascade without intent check (gray zone gets a banner) | n/a | 98.1 ± 0.6% | 97.7 ± 0.9% | 88.4 ± 4.5% | 94.4 ± 3.0% | 63.7 ± 11.5% | 7.2 ± 2.4 |
+| Full cascade | n/a | 98.1 ± 0.6% | 97.7 ± 0.9% | 91.8 ± 4.8% | 94.4 ± 3.0% | 63.7 ± 11.5% | 7.2 ± 2.4 |
 
-| Feature | What it measures |
-|---|---|
-| `fake_reply` | Subject starts with RE:/FW:/Fwd: but this mailbox and sender have never exchanged mail (history store, not the quoted thread) |
-| `subject_body_sim` | TF-IDF cosine similarity between subject and body |
-| `subject_kw` | Urgency / money words in the subject (separate from the body keyword counts) |
-| `subject_caps_ratio`, `subject_exclaims`, `subject_emojis` | Style: share of capital letters, "!" count, emoji count |
+For the score rows, blocked and blocked or bannered are the same (a score of 0.5 or more). The cascade
+rows have no single score, so PR-AUC is n/a.
 
-The generator gives real threads a reply prefix (backed by the sent-mail log), makes 30–40% of
-phishing and BEC campaigns fake a reply (half with a forged quoted thread), has colleagues forward
-vendor mail, and puts emojis and capitals in some spam and in a few legit newsletters and promos.
+Text alone is not enough: it flags 190.8 legit emails per run (12% of legit mail), because real
+invoices, payment chasers and IT notices use the same words. Metadata alone catches 85.3% of BEC.
+Together they work. The full model keeps BEC recall above 92% while flagging 3.2 legit emails per run.
 
-Why they add little here: `subject_body_sim` ranks 5th by SHAP, but `fake_reply` adds almost nothing
-because every fake reply in this data comes from a brand-new attacker address, which
-`untrusted_sender` already flags; it would matter for a hijacked account faking a reply. The style
-features mainly fire on spam, which is already caught 100%.
+The cascade adds 2.0 points of BEC recall (blocked or bannered) and 4.5 points of hard-positive recall
+over the model, for 4.0 more legit emails flagged per run. The intent check does less than I expected.
+Bannering every gray-zone email detects exactly as much; what the intent check changes is how many
+attacks get blocked instead of bannered (BEC blocked rises from 88.4% to 91.8%), without flagging more
+legit mail. The subject-line features have no measurable effect.
 
-### The text approach
+The error bars are wide because each run has only about 70 BEC emails; single runs put BEC recall
+(blocked or bannered) anywhere from 89% to 97%. On the 10 hand-written emails, the cascade catches 5.0
+± 0.7 of the 6 attacks and delivers 3 of the 4 legit emails cleanly in every seed. Per-class results,
+hard cases and top features are in [DESIGN.md](DESIGN.md#15-reference-tables) and
+[reports/](reports/eval_report.md).
 
-- **Tier 1: TF-IDF + logistic regression → `text_score`.** Unigrams and bigrams (never crossing a
-  sentence boundary) over subject + body, with URLs, reply prefixes, the sender's display name and the
-  recipient's name removed so the model reads *what is said*, not *who signed it*. Its P(malicious) is
-  one feature of LightGBM. On training rows the score is **out-of-fold** (5-fold), so LightGBM never
-  learns from a score that has already seen that row's label.
-- **Tier 2: TF-IDF intent classifier + keyword layer + topic-shift cosine.** A one-vs-rest logistic
-  regression predicts four request intents (payment, gift card, credential, urgency), trained on weak
-  labels from simple patterns. Next to it, a **deterministic keyword layer** catches any money request
-  (a currency amount such as "$5000", "5000 dollar", "Rs 15,000", "USD 250", or words like pay, fee,
-  deposit, transfer) and any **off-channel contact** (a phone number, WhatsApp, Telegram). If it fires,
-  the intent counts as present whatever the classifier says: a bag-of-words model scored "pay 5000
-  dollar as resignation fee" at 0.02 for payment because it had never seen that phrasing. Topic shift is
-  1 − cosine similarity between this email's TF-IDF vector and the centroid of the sender's earlier
-  emails to this tenant.
-- **Why this and not embeddings or an LLM:** it is fast (a few ms of CPU per email), free (no GPU, no
-  API calls, nothing leaves the tenant boundary) and explainable (every weight maps to a word or
-  phrase you can read, below; every keyword hit is a reason code).
-- **Limitation:** it matches words, not meaning. A paraphrase it has not seen ("handle this discreetly
-  for me") or an attacker copying a real vendor's wording passes as normal; that is why the metadata
-  and relationship features exist, and why embeddings are listed under future work. The keyword layer
-  is deliberately broad, so it also fires on legit invoices and signatures with phone numbers; it only
-  acts in the gray zone and only quarantines when the relationship also looks off.
+## Cost and latency
 
-### What the text model learned
+Latency is wall time per email, with the mock lookups really sleeping their simulated latency. The p99
+is 42.8 ± 4.5 ms across seeds, against a 2 second target and the 5 second deadline, and no email hit
+the deadline. In seed 42 the p50 is 14.6 ms, the p95 30.5 ms, and CPU time about 4.6 ms per email.
 
-Top 15 TF-IDF terms by logistic-regression weight (seed 42, from `make eval`):
+The cost is an estimated variable cost under stated deployment assumptions, not a measurement. As
+implemented, every reputation lookup is a paid call and every attachment goes through the single
+scanner, priced as a sandbox scan. That comes to $0.1154 ± 0.0030 per mailbox per month at the
+specified 5 emails a day, 38% of the budget.
 
-| # | Toward attack | Toward legit |
-|---|---|---|
-| 1 | purchase | unchanged |
-| 2 | your | are unchanged |
-| 3 | purchase order | payment details |
-| 4 | document | hi |
-| 5 | last email | tuesday |
-| 6 | book time | payment |
-| 7 | book | details are |
-| 8 | time here | from |
-| 9 | last | on the |
-| 10 | on my | available |
-| 11 | my last | delivery |
-| 12 | here url | on |
-| 13 | here | are |
-| 14 | account | the |
-| 15 | brightcart | capabilities deck |
+Proposed, not implemented: a lookup cache, an attachment hash cache, a cheap antivirus scan on every
+file, and the sandbox only for risky file types on mail that was not already quarantined. With those
+the estimate is $0.0083 ± 0.0006 (3%). For a heavy inbox of 120 emails a day (Radicati reports 122 sent
+and received per business user per day, [2015 report](https://www.radicati.com/wp/wp-content/uploads/2015/02/Email-Statistics-Report-2015-2019-Executive-Summary.pdf)),
+the implemented design would cost $2.7704 ± 0.0724, more than 9 times the budget, and the proposed
+savings bring it to $0.2000 ± 0.0142 (67%). Both volumes reuse the per-email rates observed in the
+replay. Prices and sources are in [DESIGN.md](DESIGN.md#estimated-variable-cost).
 
-Sensible: "click here" links ("here url"), spam follow-ups ("my last email", "book time"), malware lures
-("purchase order", "document"), credential lures ("account"), and on the legit side "payment details are
-unchanged" from genuine vendor mail. "payment" leans legit because real payment chasers far outnumber
-fraudulent ones, which is exactly why text alone can't catch BEC. Not sensible, and left visible on
-purpose: "brightcart" is one tenant's company name (spam and phishing templates name the company),
-"capabilities deck" comes from one hard-negative template, and "tuesday", "hi" and function words
-reflect template style. Three earlier versions of this list exposed leaks that were fixed: sender
-names and company suffixes ("Ltd", "IT Service Desk"), reply prefixes ("fw", "fwd") once fake replies
-were added, and a literal "budget review" topic that only fake replies used.
+## What I found and fixed along the way
 
-## Hand-written challenge set
+The first model scored a perfect 1.000 PR-AUC. That was a warning sign: each class had its own template
+wording, so the label leaked through the text. I rewrote the generator so classes share wording, legit
+mail sounds risky, and many attacks use plain business language.
 
-`data/challenge/emails.json` holds 10 emails written by hand: a fake remote job asking for a deposit
-via Telegram, a lottery win with a WhatsApp claims agent, sextortion with a Bitcoin wallet, an
-SMS-style parcel notice, a callback scam ("call this number to cancel"), BEC written in Spanish, and
-four unusual but legit emails. They were written before any fix was evaluated on them and are never
-used for tuning. `make eval` writes [reports/challenge.md](reports/challenge.md).
+Reading the text model's top terms, rather than its metrics, showed that it had learned signatures.
+The strongest attack terms were "Ltd" and "Inc", and the strongest legit term was "IT Service Desk". I
+now mask URLs, sender display names, recipient names and reply prefixes before the text model sees the
+email.
 
-Not all of them are new to the generator, so this is a challenge set, not a clean out-of-distribution
-test. **Overlaps:** the job scam (the generator gained fake-job advance-fee scams afterwards), the
-lottery (prize advance-fee templates exist; the wording is new), the parcel notice (a "delivery attempt
-failed" brand phish exists; the SMS style is new), the Spanish BEC (its metadata pattern, a freemail
-sender using the CEO's name, is common; the language is new), and the vendor email (the vendor domain is
-known, but this address has never written before). Sextortion, the callback scam and the three other
-legit emails have no generator counterpart.
+An outside review found holes in trust. One quarantined email could make a stranger "established",
+and each tier had its own definition: Tier 0 used the raw count of received mail, Tier 2 accepted one
+clean delivery, and DMARC-failing deliveries still counted. One of my hand-written emails exposed
+another hole, a DMARC-failing spoof of a colleague inheriting that colleague's trust. There is now one
+trust function, with a regression test for each case. The review also found the deadline was only
+checked after the model returned; the whole decision now runs under a hard timeout.
 
-| | Attacks caught (of 6) | Legit delivered cleanly (of 4) |
-|---|---|---|
-| Before the keyword layer and advance-fee data (seed 42) | 2 | 3 |
-| Now, seed 42 | 6 | 3 |
-| Now, 5 seeds | 5.0 ± 0.7 | 3.0 ± 0.0 |
+## Limitations and what I would do next
 
-Seed 42, email by email:
+Because the data is synthetic, the absolute numbers are optimistic, and the 10 hand-written emails are
+a thin real-world check (several overlap generator scenarios).
 
-| Email | Truth | Action | Tier | Why |
-|---|---|---|---|---|
-| Fake remote job, deposit via Telegram | phishing | QUARANTINE | 1 | model confident (0.98) |
-| Lottery win, agent on WhatsApp | phishing | QUARANTINE | 1 | model confident (0.88), auth failure |
-| Sextortion, Bitcoin wallet, spoofs the recipient's own address | phishing | QUARANTINE | 2 | money request + no trust (DMARC fails, so the spoofed address inherits none) |
-| SMS-style parcel notice with a link | phishing | WARNING_BANNER | 2 | new sender, auth failure |
-| Callback scam, phone number only | phishing | QUARANTINE | 1 | model confident (1.00) |
-| BEC in Spanish from Gmail with the CEO's name | BEC | QUARANTINE | 1 | model confident (0.91), display-name mismatch |
-| Emoji-heavy internal note | legit | DELIVER | 1 | |
-| Terse email from a new address at a known vendor domain | legit | DELIVER | 1 | |
-| First-time customer on Gmail asking for a refund | legit | **QUARANTINE** | 1 | model confident (0.94): "new freemail sender + money request" is the scam pattern |
-| HR sign-in reminder with a Workday link | legit | DELIVER | 1 | |
+The main miss is BEC from a hijacked real vendor account (6 of 7 delivered in seed 42). It passes
+authentication and sits in a real thread, and because the vendor is established, Tier 2 can at most
+banner it, so that Tier 2 never quarantines a real vendor's payment request. Next I would flag any email that
+changes bank details, with out-of-band verification, and track each sender's usual writing style and
+sending IPs.
 
-Across seeds, the sextortion email is still delivered in 4 of 5 runs (seed 42 is the exception) and the
-refund request is quarantined in all 5. Both are listed under [Limitations](#limitations).
+Sextortion "from" the recipient's own address with DMARC failing is still delivered in 4 of 5 seeds,
+which a rule for that exact case would close. A first-time customer on Gmail asking for a refund is
+quarantined in every seed; per-tenant inbox roles would help. Password-protected zips from known
+contacts rest on weak signals. On the validation window no gray-zone bound meets my 1% budget for
+flagged legit mail, so the most conservative one (0.3) is used, and there is no feedback loop from
+user reports.
 
-## Results (single run, seed 42)
+Beyond these, I would implement the proposed cost savings, try a small local sentence-embedding model
+for the text, and consider an LLM for the gray zone only (about 1% of mail); in seed 42 the base case
+leaves about $0.10 of budget per gray-zone email.
 
-**Per class** (full cascade, final output after the async scan):
+## How to run
 
-| Class | Precision | Recall | F1 | Support | PR-AUC (LightGBM) |
-|---|---|---|---|---|---|
-| legit | 99.2% | 99.4% | 99.3% | 1574 | 0.999 |
-| spam | 97.5% | 100.0% | 98.7% | 115 | 1.000 |
-| phishing | 100.0% | 95.2% | 97.5% | 104 | 0.999 |
-| **BEC** | **94.3%** | **89.2%** | **91.7%** | 74 | 0.961 |
-| malware | 93.2% | 97.2% | 95.2% | 71 | 0.996 |
+You need Python 3.11 and uv. On macOS, install the OpenMP runtime once with `brew install libomp`;
+without it, importing LightGBM fails with `Library not loaded: @rpath/libomp.dylib`.
 
-Classic BEC patterns (CEO gift cards, wire requests from lookalike and freemail domains, payroll
-diversion, direct spoofing, vendor-invoice fraud) were detected 65 of 67 times. Most BEC misses came
-from **compromised real vendor accounts**: 6 of 7 delivered, 1 bannered.
+- `make setup`: create the virtual environment and install dependencies.
+- `make data train eval`: generate the data, train the models and write reports/ (about 1 minute).
+- `make demo`: open the Streamlit demo on http://localhost:8501.
 
-**Hard cases.** Hard positives: 44.4% detected (compromised partner accounts 3/5, compromised vendor
-1/7, password-protected zips 4/6). Hard negatives: 247 in test, 2 quarantined (legit
-password-protected archives), 7 bannered (4 real vendor payment requests, 3 legit archives).
-
-**Latency.** Wall time of the synchronous path, measured once per email, with the mock lookups really
-sleeping their simulated latency and running concurrently: p50 **14.6 ms**, p95 **30.5 ms**, p99
-**40.7 ms** (p99 over 5 seeds: 42.8 ± 4.5 ms), well under the 2 s target and the 5 s deadline. No
-verdict hit the deadline in any seed. CPU time is ~4.6 ms per email; the slowest lookup dominates.
-
-**What drives the model (SHAP, top 10):** text_score, risky_attachments, sender_domain_age_days,
-payment_kw, min_url_domain_age_days, subject_body_sim, topic_shift, lookalike_score, ip_score,
-domain_volume_24h.
-Chart: [reports/shap_top_features.png](reports/shap_top_features.png).
-
-### Estimated variable cost
-
-This is an **estimated variable cost under stated deployment assumptions**, not a measurement. It
-separates what is implemented from what is proposed:
-
-- **As implemented:** every WHOIS / IP / URL lookup is a paid call, and every attachment goes through
-  the single (mock) virus scanner, priced as a sandbox scan.
-- **Proposed, not implemented:** a lookup cache, an attachment hash cache, a cheap static AV scan on
-  every file, and the sandbox only for archives, macro documents and executables on mail that was not
-  already quarantined.
-
-The **base case** uses the specified 5 inbound emails per mailbox per day. The **cost projection** uses
-120/day (a heavy inbox). The synthetic data itself has only ~0.56 emails per mailbox per day, so both
-reuse the per-email rates observed in the replay (lookups, attachments, sandbox submissions, CPU time).
-
-| $/mailbox/month | Base, as implemented | Base, with proposed savings | Projection (120/day), as implemented | Projection, with proposed savings |
-|---|---|---|---|---|
-| **5 seeds** | **0.115 ± 0.003 (38%)** | 0.008 ± 0.001 (3%) | 2.77 ± 0.07 (923%) | 0.200 ± 0.014 (67%) |
-| Seed 42: compute | 0.0000 | 0.0000 | 0.0006 | 0.0006 |
-| Seed 42: reputation / WHOIS lookups | 0.0396 | 0.0040 | 0.9503 | 0.0950 |
-| Seed 42: attachment scanning | 0.0791 | 0.0047 | 1.8985 | 0.1129 |
-| Seed 42: total | 0.1187 (40%) | 0.0087 (3%) | 2.8493 (950%) | 0.2085 (69%) |
-
-The base case fits as implemented. A heavy inbox only fits with the proposed savings, mostly from
-scanning: sending every attachment to a sandbox is what breaks the budget.
-
-**Headroom for a smarter Tier 2** (base case, as implemented, seed 42): $0.18/mailbox/month left; with
-1.2% of mail in the gray zone that is ~1.8 emails per mailbox per month, so up to **~$0.10 per
-gray-zone email** for embeddings or an LLM call.
-
-Assumptions (all in `configs/default.yaml`; measured values come from the eval run):
-
-| Assumption | Value | Source |
-|---|---|---|
-| Inbound emails per mailbox per day (base) | 5 | The assignment's specification (30 mailboxes per customer). |
-| Inbound emails per mailbox per day (projection) | 120 | A heavy business inbox. Radicati reports 122 emails *sent and received* per business user per day ([2015 report](https://www.radicati.com/wp/wp-content/uploads/2015/02/Email-Statistics-Report-2015-2019-Executive-Summary.pdf)) and ~78 *received* ([2012 survey](https://www.radicati.com/?p=8785)), so 120 inbound is pessimistic. |
-| Synthetic rate | ~0.56/day | Measured: 10,000 emails / 300 mailboxes / 60 days. Not used for cost; per-email rates are. |
-| Compute price | $0.04 per vCPU-hour | AWS c7g.large (2 vCPU, on-demand, us-east-1) lists at $0.0725/hour ≈ $0.036/vCPU-hour per third-party trackers ([DoIT](https://www.doit.com/compute/spot/us-east-1/c7g.large), [Holori](https://calculator.holori.com/aws/ec2/c7g.large/us-east-1)); rounded up. |
-| CPU per email | ~4.6 ms | Measured (process CPU time of the sync path). |
-| Overhead on measured compute | 3× | Assumption: MIME parsing, queueing and retries are not in the measured time. |
-| Lookups per email | 2.6 | Measured: IP + sender WHOIS + URL reputation and WHOIS per unique link. |
-| Price per lookup | $0.0001 | Assumption: blend of self-hosted feeds and commercial reputation APIs; prices vary widely. |
-| Lookup cache hit rate (proposed) | 90% | Assumption: senders, IPs and link domains repeat heavily within hours. |
-| Attachments per email | 0.26 | Measured on the synthetic test set (likely higher than real mail). |
-| Scanner / sandbox price | $0.002 per file | Assumption: order of magnitude for a commercial sandbox. |
-| Static AV scan (proposed) | $0.00005 per file | Assumption: self-hosted signature scanner, CPU cost only. |
-| Sandbox submissions (proposed) | 0.025 per email | Measured: archives, macro documents and executables on mail not already quarantined. |
-| Attachment hash cache hit rate (proposed) | 50% | Assumption: the same files (invoices, decks, campaign payloads) reach many mailboxes. |
-
-## Demo
-
-`make demo` opens a Streamlit app. Pick one of eight examples (routine invoice, a real CFO's urgent
-wire, a lookalike phish blocked at Tier 0, a CEO gift-card request, a gray-zone email decided by the
-intent check, a macro malware invoice, a missed hijacked-vendor email, and a job scam reported by a
-tester: "You are hired at tesla, pay 5000 dollar as resignation fee at <phone>") or paste your own. It
-shows the action, predicted class, tier, latency, reason codes and intent probabilities (Tier 2), then
-waits for the async attachment scan. For model decisions it draws a per-email SHAP chart: each bar is a
-feature's contribution to LightGBM's **legit-class raw score** (multiclass log-odds), sign flipped, so a
-bar to the right lowers P(legit) and raises P(malicious) = 1 − P(legit). The bars add up in log-odds,
-not in probability. Tier 0 blocks and fail-open verdicts never ran the model, so they show reasons only.
-
-## Limitations
-
-- **Synthetic data, optimistic numbers.** Emails come from templates with a few phrasings each, so
-  even with shared wording, plain-language attacks and label noise, the model sees far less variety
-  than real mail. Expect noticeably lower precision and recall on real traffic. The hand-written
-  challenge set (5 of 6 attacks, 3 of 4 legit) is the closest thing here to a real-world check, and it
-  is only 10 emails, several of which overlap generator scenarios. The value of this repo is the
-  design, the point-in-time evaluation and the ablation, not the absolute scores.
-- **Compromised vendor accounts** (6 of 7 delivered in seed 42). The email comes from the real vendor,
-  passes SPF/DKIM/DMARC, sits in a real thread and may copy the vendor's normal invoice wording. Because
-  the vendor is an established correspondent, the intent check can at most banner it (a deliberate
-  trade: real vendors' payment requests must not be quarantined). Proposed fixes:
-  - a **new-bank-details flag**: any email that changes payment details triggers a banner and an
-    out-of-band verification workflow, whoever sends it;
-  - **sender behaviour anomalies**: writing style (sentence length, greeting, signature, vocabulary)
-    and send-time / sending-IP / client changes compared with that sender's history.
-- **Password-protected zips from known contacts.** 4 of 6 were caught in seed 42, but the scanner
-  can't open them and the sender is trusted, so detection rests on weak signals. Proposed fix: a
-  **banner on password-protected archives from senders who have not sent one before**, and blocking
-  archives whose password is in the same email.
-- **Self-spoofed extortion (challenge set).** Sextortion "from" the recipient's own address with DMARC
-  failing is still delivered in 4 of 5 seeds: it usually scores just under the gray zone, and the
-  model has never seen extortion wording. Proposed fix: quarantine mail whose From is the recipient's
-  own address and fails DMARC (a precise rule that does not exist yet).
-- **First-time customers asking for money (challenge set).** A refund request from a new Gmail address
-  is quarantined in every seed: "new freemail sender + money request" is exactly the scam pattern.
-  Proposed fix: per-tenant inbox roles (a support or billing mailbox expects strangers asking about
-  money, so it should banner there, not quarantine).
-- **Why Tier 2 adds modestly here.** Rules and LightGBM settle ~99% of mail on their own, so only
-  ~1% reaches the gray zone. Topic shift is a weak signal on this data because legit senders already
-  write about many topics (median shift 0.78 for legit vs 0.83 for BEC). On the validation window,
-  lowering the gray-zone bound from 0.3 to 0.1 would lift hard-positive recall from 82% to 91% but flag
-  18 legit emails instead of 10 (1.1% → 2.0% of legit mail). No bound meets the 1% banner budget, so
-  `make validate` keeps the most conservative one, 0.3.
-- **Trust needs history.** In the offline replay, mail from before the test period has no verdicts,
-  so its observed label stands in for "delivered and not reported". A real deployment would use its
-  own delivery log.
-- **The async virus scan caught nothing extra** in this test set: everything it can detect was already
-  quarantined by the sync path, and what it can't open (encrypted archives) it can't help with.
-- **No feedback loop.** User "report phishing" clicks, admin overrides and per-tenant thresholds are
-  not modelled.
-
-## Future work
-
-- **Sentence embeddings** (a small local model such as MiniLM on CPU) for the text score and topic
-  shift, to catch paraphrases that TF-IDF misses.
-- **An LLM tier for the gray zone only** (~1% of mail), asking "is this a request to move money or
-  credentials, and is it unusual for this sender?" Only affordable because the cascade filters 99%
-  first, and only with a provider and data-handling terms suitable for customer mail.
-- The proposed cost savings (lookup and hash caches, AV + selective sandbox), per-tenant calibration
-  and thresholds, behavioural sender profiles (send times, clients, IPs), and an analyst feedback loop.
-
-## Repository layout
-
-```
-configs/default.yaml       all parameters, seeds, cost assumptions
-src/data/                  synthetic tenants, email stream and sent-mail log (generate.py, templates.py)
-src/services/              mocked WHOIS / IP / URL reputation / virus scan with latency + timeouts
-src/rules/engine.py        Tier 0 rules and reason codes
-src/features/extract.py    point-in-time features, lookups in parallel, the shared trust definition
-src/models/                text model + LightGBM training
-src/pipeline/              cascade and Tier 2 intent model
-src/eval/report.py         evaluation -> reports/eval_report.md
-src/eval/validate.py       model selection on the validation window -> reports/validation.md
-src/eval/multiseed.py      whole pipeline over 5 seeds -> reports/multiseed.md
-src/eval/challenge.py      hand-written challenge set -> reports/challenge.md
-data/challenge/emails.json the 10 hand-written emails
-demo/streamlit_app.py      demo app
-tests/                     services, data, features, cascade
-```
-
-Design trade-offs are in [DESIGN.md](DESIGN.md).
+The demo lets you pick from eight example emails or paste your own, and shows the action, tier, reason
+codes and a per-email explanation. `make test` runs the tests, `make validate` reruns model selection
+([reports/validation.md](reports/validation.md)), and `make multiseed` reruns everything over 5 seeds
+([reports/multiseed.md](reports/multiseed.md)).
